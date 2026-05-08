@@ -24,6 +24,21 @@ interface Props {
   onRemove: (uid: string) => void;
 }
 
+/**
+ * UUID generator con fallback per contesti non-secure (HTTP).
+ * `crypto.randomUUID()` richiede secure context (HTTPS o localhost).
+ */
+function makeUid(): string {
+  if (
+    typeof globalThis !== "undefined" &&
+    typeof globalThis.crypto !== "undefined" &&
+    typeof globalThis.crypto.randomUUID === "function"
+  ) {
+    return globalThis.crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function IndicatorControls({
   registry,
   active,
@@ -95,7 +110,7 @@ export function IndicatorControls({
                 info={info}
                 onAdd={(params) => {
                   onAdd({
-                    uid: crypto.randomUUID(),
+                    uid: makeUid(),
                     id: info.id,
                     label: info.label,
                     kind: info.kind,
