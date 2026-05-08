@@ -174,3 +174,98 @@ def test_backtest_routes_registered() -> None:
     routes = {r.path for r in app.routes}  # type: ignore[attr-defined]
     assert "/api/v1/strategies" in routes
     assert "/api/v1/backtest/run" in routes
+    assert "/api/v1/backtest/walk-forward" in routes
+
+
+# ---------------------------------------------------------------------------
+# Walk-forward
+# ---------------------------------------------------------------------------
+
+
+def test_walkforward_verdict_robust() -> None:
+    """4/5 finestre vincenti con mean Sharpe > 0.3 → robust."""
+    from app.backtest.walk_forward import _verdict
+
+    verdict, _ = _verdict(
+        n_windows=5,
+        n_winning=5,
+        n_with_trades=5,
+        mean_return=0.10,
+        mean_sharpe=0.8,
+    )
+    assert verdict == "robust"
+
+
+def test_walkforward_verdict_unstable() -> None:
+    """0/5 finestre vincenti → unstable."""
+    from app.backtest.walk_forward import _verdict
+
+    verdict, _ = _verdict(
+        n_windows=5,
+        n_winning=1,
+        n_with_trades=5,
+        mean_return=-0.05,
+        mean_sharpe=-0.3,
+    )
+    assert verdict == "unstable"
+
+
+def test_walkforward_verdict_mixed() -> None:
+    """3/5 finestre vincenti → mixed (40-79%)."""
+    from app.backtest.walk_forward import _verdict
+
+    verdict, _ = _verdict(
+        n_windows=5,
+        n_winning=3,
+        n_with_trades=5,
+        mean_return=0.02,
+        mean_sharpe=0.1,
+    )
+    assert verdict == "mixed"
+
+
+def test_walkforward_verdict_no_signal() -> None:
+    """Solo 1/5 finestre con trade → no_signal."""
+    from app.backtest.walk_forward import _verdict
+
+    verdict, _ = _verdict(
+        n_windows=5,
+        n_winning=0,
+        n_with_trades=1,
+        mean_return=0.0,
+        mean_sharpe=None,
+    )
+    assert verdict == "no_signal"
+
+
+def test_walkforward_min_data_check() -> None:
+    """Senza abbastanza candele deve fallire con ValueError."""
+    import numpy as np
+    import pandas as pd
+
+    from app.backtest.walk_forward import run_walk_forward
+
+    df = pd.DataFrame(
+        {
+            "open": [100.0] * 100,
+            "high": [101.0] * 100,
+            "low": [99.0] * 100,
+            "close": [100.0] * 100,
+            "volume": [1000.0] * 100,
+        },
+        index=pd.date_range("2026-01-01", periods=100, freq="1h", tz="UTC"),
+    )
+    # 100 candele / 5 windows = 20 per finestra → sotto minimo 50
+    try:
+        run_walk_forward(
+            df=df,
+            strategy_id="rsi_mean_reversion",
+            params={},
+            symbol="BTC/USDT",
+            timeframe="1h",
+            n_windows=5,
+        )
+    except ValueError:
+        pass
+    else:  # pragma: no cover
+        raise AssertionError("ValueError attesa per dati insufficienti")

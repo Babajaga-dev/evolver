@@ -16,13 +16,23 @@ from app.backtest.strategies import (
     available_strategies,
     get_strategy,
 )
+from app.backtest.walk_forward import (
+    WalkForwardResult,
+    WalkForwardSummary,
+    WindowResult,
+    run_walk_forward,
+)
 
 __all__ = [
     "BacktestEngine",
     "BacktestResult",
     "STRATEGY_REGISTRY",
     "StrategySpec",
+    "WalkForwardResult",
+    "WalkForwardSummary",
+    "WindowResult",
     "available_strategies",
     "compute_metrics",
     "get_strategy",
+    "run_walk_forward",
 ]

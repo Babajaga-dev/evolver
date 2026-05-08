@@ -175,6 +175,70 @@ export interface BacktestResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Walk-forward
+// ---------------------------------------------------------------------------
+
+export interface WalkForwardRequest {
+  symbol: string;
+  timeframe: string;
+  strategy_id: string;
+  params: Record<string, number | string>;
+  period_days: number;
+  initial_cash: number;
+  n_windows: number;
+}
+
+export interface WindowResult {
+  window_index: number;
+  window_start: string;
+  window_end: string;
+  n_candles: number;
+  n_trades: number;
+  total_return: number;
+  sharpe: number | null;
+  calmar: number | null;
+  max_drawdown: number;
+  win_rate: number | null;
+  final_equity: number;
+}
+
+export type WalkForwardVerdict =
+  | "robust"
+  | "mixed"
+  | "unstable"
+  | "no_signal";
+
+export interface WalkForwardSummary {
+  n_windows: number;
+  n_windows_winning: number;
+  n_windows_with_trades: number;
+  mean_total_return: number;
+  std_total_return: number;
+  mean_sharpe: number | null;
+  std_sharpe: number | null;
+  mean_max_drawdown: number;
+  worst_max_drawdown: number;
+  best_total_return: number;
+  worst_total_return: number;
+  verdict: WalkForwardVerdict;
+  verdict_reason: string;
+}
+
+export interface WalkForwardResponse {
+  symbol: string;
+  timeframe: string;
+  strategy_id: string;
+  strategy_label: string;
+  params: Record<string, number | string>;
+  initial_cash: number;
+  n_windows: number;
+  period_start: string;
+  period_end: string;
+  windows: WindowResult[];
+  summary: WalkForwardSummary;
+}
+
+// ---------------------------------------------------------------------------
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
@@ -265,6 +329,13 @@ export const api = {
 
   runBacktest: (req: BacktestRequest) =>
     fetchJson<BacktestResponse>("/api/v1/backtest/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    }),
+
+  runWalkForward: (req: WalkForwardRequest) =>
+    fetchJson<WalkForwardResponse>("/api/v1/backtest/walk-forward", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),

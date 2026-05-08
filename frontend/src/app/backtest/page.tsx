@@ -5,12 +5,14 @@ import { useEffect, useState } from "react";
 import { EquityCurve } from "@/components/EquityCurve";
 import { MetricCards } from "@/components/MetricCards";
 import { TradesTable } from "@/components/TradesTable";
+import { WalkForwardPanel } from "@/components/WalkForwardPanel";
 import {
   ApiError,
   api,
   type BacktestResponse,
   type MarketsResponse,
   type StrategyInfo,
+  type WalkForwardResponse,
 } from "@/lib/api";
 
 const PERIODS = [
@@ -38,6 +40,13 @@ export default function BacktestPage() {
   const [result, setResult] = useState<BacktestResponse | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Walk-forward
+  const [walkForwardEnabled, setWalkForwardEnabled] = useState(false);
+  const [nWindows, setNWindows] = useState(5);
+  const [wfResult, setWfResult] = useState<WalkForwardResponse | null>(null);
+  const [wfRunning, setWfRunning] = useState(false);
+  const [wfError, setWfError] = useState<string | null>(null);
 
   // Mount: markets + strategies
   useEffect(() => {
@@ -87,40 +96,74 @@ export default function BacktestPage() {
 
   const currentStrategy = strategies.find((s) => s.id === strategyId);
 
-  const handleRun = async () => {
-    if (!currentStrategy) return;
-    setRunning(true);
-    setError(null);
-    setResult(null);
-
-    // Cast params al tipo corretto
-    const parsedParams: Record<string, number | string> = {};
+  const parseParams = (): Record<string, number | string> => {
+    const out: Record<string, number | string> = {};
+    if (!currentStrategy) return out;
     for (const p of currentStrategy.params) {
       const raw = paramValues[p.name];
       if (raw === undefined) continue;
-      parsedParams[p.name] =
+      out[p.name] =
         p.type === "int"
           ? parseInt(raw, 10)
           : p.type === "float"
             ? parseFloat(raw)
             : raw;
     }
+    return out;
+  };
 
-    try {
-      const res = await api.runBacktest({
-        symbol,
-        timeframe,
-        strategy_id: strategyId,
-        params: parsedParams,
-        period_days: period.days,
-        initial_cash: initialCash,
-      });
-      setResult(res);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Backtest failed");
-    } finally {
-      setRunning(false);
+  const handleRun = async () => {
+    if (!currentStrategy) return;
+    setRunning(true);
+    setError(null);
+    setResult(null);
+    setWfResult(null);
+    setWfError(null);
+
+    const parsedParams = parseParams();
+
+    // Lancio singolo backtest sempre + walk-forward opzionale in parallelo
+    const tasks: Promise<unknown>[] = [
+      api
+        .runBacktest({
+          symbol,
+          timeframe,
+          strategy_id: strategyId,
+          params: parsedParams,
+          period_days: period.days,
+          initial_cash: initialCash,
+        })
+        .then((res) => setResult(res))
+        .catch((e) =>
+          setError(e instanceof Error ? e.message : "Backtest failed"),
+        ),
+    ];
+
+    if (walkForwardEnabled) {
+      setWfRunning(true);
+      tasks.push(
+        api
+          .runWalkForward({
+            symbol,
+            timeframe,
+            strategy_id: strategyId,
+            params: parsedParams,
+            period_days: period.days,
+            initial_cash: initialCash,
+            n_windows: nWindows,
+          })
+          .then((res) => setWfResult(res))
+          .catch((e) =>
+            setWfError(
+              e instanceof Error ? e.message : "Walk-forward failed",
+            ),
+          )
+          .finally(() => setWfRunning(false)),
+      );
     }
+
+    await Promise.all(tasks);
+    setRunning(false);
   };
 
   return (
@@ -252,6 +295,41 @@ export default function BacktestPage() {
             </div>
           )}
 
+          <div className="mt-6 border-t border-[--color-surface-border] pt-6">
+            <label className="flex cursor-pointer items-center gap-3 font-mono text-xs">
+              <input
+                type="checkbox"
+                checked={walkForwardEnabled}
+                onChange={(e) => setWalkForwardEnabled(e.target.checked)}
+                className="h-4 w-4 cursor-pointer accent-[--color-gold]"
+              />
+              <span
+                className="uppercase tracking-[0.3em] text-[--color-text-secondary]"
+                style={{ fontFamily: "var(--font-serif)" }}
+              >
+                Walk-forward analysis
+              </span>
+              <span className="text-[--color-text-muted]">
+                · valida la robustezza su {nWindows} sub-finestre rolling
+              </span>
+            </label>
+            {walkForwardEnabled && (
+              <div className="mt-3">
+                <Field label="N windows">
+                  <input
+                    type="number"
+                    min={2}
+                    max={20}
+                    value={nWindows}
+                    onChange={(e) => setNWindows(parseInt(e.target.value, 10))}
+                    className="input"
+                    style={{ maxWidth: 120 }}
+                  />
+                </Field>
+              </div>
+            )}
+          </div>
+
           <div className="mt-6 flex items-center gap-4">
             <button
               onClick={handleRun}
@@ -298,7 +376,7 @@ export default function BacktestPage() {
               />
             </section>
 
-            <section className="mb-16 border border-[--color-surface-border] bg-[--color-surface-card] p-4">
+            <section className="mb-8 border border-[--color-surface-border] bg-[--color-surface-card] p-4">
               <h2
                 className="mb-3 text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
                 style={{ fontFamily: "var(--font-serif)" }}
@@ -308,6 +386,29 @@ export default function BacktestPage() {
               <TradesTable trades={result.trades} maxRows={50} />
             </section>
           </>
+        )}
+
+        {/* Walk-forward */}
+        {(wfRunning || wfResult || wfError) && (
+          <section className="mb-16">
+            <h2
+              className="mb-4 text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              Robustness · Walk-Forward
+            </h2>
+            {wfRunning && !wfResult && (
+              <p className="font-mono text-sm text-[--color-text-muted]">
+                Loading walk-forward windows…
+              </p>
+            )}
+            {wfError && (
+              <p className="font-mono text-sm text-[--color-crimson]">
+                ✕ {wfError}
+              </p>
+            )}
+            {wfResult && <WalkForwardPanel result={wfResult} />}
+          </section>
         )}
 
         <footer className="mt-12 text-xs text-[--color-text-muted]">
