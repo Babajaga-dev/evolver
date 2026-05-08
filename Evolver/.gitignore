@@ -1,0 +1,99 @@
+# ============================================================
+#  Evolver — .gitignore
+# ============================================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+.eggs/
+build/
+dist/
+wheels/
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# --- uv ---
+# uv.lock viene committato (è il lockfile riproducibile)
+
+# --- Testing & coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# --- Type checkers ---
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+.pnpm-store/
+.npm/
+.yarn/
+
+# --- Environment & secrets ---
+.env
+.env.local
+.env.*.local
+.env.production
+*.pem
+*.key
+secrets/
+.anthropic/
+
+# --- Database & data ---
+*.db
+*.sqlite
+*.sqlite3
+data/
+backfill_cache/
+*.parquet
+*.feather
+
+# --- Logs ---
+*.log
+logs/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+
+# --- Docker ---
+.docker/
+
+# --- Misc ---
+*.bak
+*.tmp

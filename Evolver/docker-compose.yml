@@ -1,0 +1,90 @@
+# =============================================================================
+#  Evolver — docker-compose per sviluppo locale
+# =============================================================================
+#  Uso:
+#      docker compose up -d postgres redis     # solo infra
+#      docker compose up -d                     # tutto
+#      docker compose logs -f backend
+#      docker compose down -v                   # reset completo (cancella DB!)
+# =============================================================================
+
+name: evolver
+
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: evolver-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-evolver}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-evolver_dev_pwd}
+      POSTGRES_DB: ${POSTGRES_DB:-evolver}
+      # Tuning leggero per dev
+      TS_TUNE_MEMORY: 4GB
+      TS_TUNE_NUM_CPUS: "2"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-evolver} -d ${POSTGRES_DB:-evolver}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - evolver_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: evolver-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - evolver_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: evolver-backend:dev
+    container_name: evolver-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENV: dev
+      DEBUG: "true"
+      LOG_LEVEL: INFO
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-evolver}:${POSTGRES_PASSWORD:-evolver_dev_pwd}@postgres:5432/${POSTGRES_DB:-evolver}
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-evolver}:${POSTGRES_PASSWORD:-evolver_dev_pwd}@postgres:5432/${POSTGRES_DB:-evolver}
+      REDIS_URL: redis://redis:6379/0
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CRYPTOPANIC_API_KEY: ${CRYPTOPANIC_API_KEY:-}
+      BINANCE_API_KEY: ${BINANCE_API_KEY:-}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
+      API_CORS_ORIGINS: "http://localhost:3000,http://localhost:8000"
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    networks:
+      - evolver_net
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  evolver_net:
+    driver: bridge

@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/* =============================================================================
+   Evolver — design tokens
+   Palette ereditata dal Bestiary: void + gold + BTC orange + warm white
+   ============================================================================= */
+
+@theme {
+  /* Colori base */
+  --color-void: #080210;
+  --color-surface: #0a0a0f;
+  --color-surface-card: #16161e;
+  --color-surface-elevated: #1e1e2a;
+  --color-surface-border: #2a2a3a;
+
+  /* Accenti */
+  --color-gold: #c5a059;
+  --color-btc: #f7931a;
+  --color-crimson: #8b1a1a;
+
+  /* Testo */
+  --color-warm-white: #f0ede8;
+  --color-text-primary: #e4e4ef;
+  --color-text-secondary: #9898a8;
+  --color-text-muted: #5a5a6a;
+
+  /* Stat indicators (per round visualization) */
+  --color-atk: #e63946;
+  --color-def: #457b9d;
+  --color-spd: #f4a261;
+
+  /* Fonts */
+  --font-deco: "Cinzel Decorative", serif;
+  --font-serif: "Cinzel", serif;
+  --font-mono: "Space Mono", "JetBrains Mono", monospace;
+  --font-body: "IM Fell English", serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-void);
+  color: var(--color-text-primary);
+  font-family: var(--font-body), system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+body::before {
+  /* Top rule gold gradient — segnatura del progetto */
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 1000;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-gold),
+    var(--color-btc),
+    var(--color-gold),
+    transparent
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

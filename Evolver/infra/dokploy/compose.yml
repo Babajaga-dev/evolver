@@ -1,0 +1,70 @@
+# =============================================================================
+#  Evolver — Dokploy compose (prod)
+# =============================================================================
+#  Da usare in Dokploy → Application → "Docker Compose"
+#
+#  Postgres+Timescale e Redis NON sono qui: vengono creati come "Database"
+#  managed da Dokploy. I loro DSN vengono iniettati come env vars dalla UI:
+#      DATABASE_URL, DATABASE_URL_SYNC, REDIS_URL
+#
+#  Vedi docs/deploy_dokploy.md per i passi completi.
+# =============================================================================
+
+name: evolver-prod
+
+services:
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    image: evolver-backend:${IMAGE_TAG:-latest}
+    restart: always
+    environment:
+      ENV: prod
+      DEBUG: "false"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # DATABASE_URL, DATABASE_URL_SYNC, REDIS_URL → da Dokploy UI
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLAUDE_MODEL_HAIKU: ${CLAUDE_MODEL_HAIKU:-claude-haiku-4-5-20251001}
+      CLAUDE_MODEL_OPUS: ${CLAUDE_MODEL_OPUS:-claude-opus-4-6}
+      CRYPTOPANIC_API_KEY: ${CRYPTOPANIC_API_KEY:-}
+      BINANCE_API_KEY: ${BINANCE_API_KEY:-}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
+      API_CORS_ORIGINS: ${API_CORS_ORIGINS:-}
+      SYMBOLS: ${SYMBOLS:-BTC/USDT,ETH/USDT}
+      TIMEFRAMES: ${TIMEFRAMES:-15m,1h,4h,1d}
+    expose:
+      - "8000"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    networks:
+      - dokploy-network
+
+  # Worker placeholder — verranno aggiunti man mano (Fase 4+)
+  # worker-data-ingest, worker-features, worker-ga-loop, ecc.
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+    image: evolver-frontend:${IMAGE_TAG:-latest}
+    restart: always
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://backend:8000}
+    expose:
+      - "3000"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true
