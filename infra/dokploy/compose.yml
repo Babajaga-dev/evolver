@@ -39,6 +39,14 @@ services:
       TIMEFRAMES: ${TIMEFRAMES:-15m,1h,4h,1d}
     expose:
       - "8000"
+    labels:
+      # Routing Traefik esplicito — Dokploy non inietta automaticamente
+      # le label per gli stack docker-compose, quindi le dichiariamo qui.
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.evolver-backend.rule=Host(`api.evolve.lan`)"
+      - "traefik.http.routers.evolver-backend.entrypoints=web"
+      - "traefik.http.services.evolver-backend.loadbalancer.server.port=8000"
     deploy:
       resources:
         limits:
@@ -61,6 +69,12 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://backend:8000}
     expose:
       - "3000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.evolver-frontend.rule=Host(`evolve.lan`)"
+      - "traefik.http.routers.evolver-frontend.entrypoints=web"
+      - "traefik.http.services.evolver-frontend.loadbalancer.server.port=3000"
     deploy:
       resources:
         limits:
