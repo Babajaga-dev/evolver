@@ -18,7 +18,7 @@ wheels/
 venv/
 env/
 ENV/
-.python-version
+# NB: .python-version viene committato — pinna la Python per uv/pyenv
 
 # --- uv ---
 # uv.lock viene committato (è il lockfile riproducibile)
@@ -73,6 +73,20 @@ data/
 backfill_cache/
 *.parquet
 *.feather
+pgdata/
+redis-data/
+postgres-data/
+
+# --- ML / GA artifacts ---
+outputs/
+runs/
+checkpoints/
+*.pkl
+*.joblib
+*.h5
+*.onnx
+mlruns/
+wandb/
 
 # --- Logs ---
 *.log
@@ -82,18 +96,27 @@ logs/
 .DS_Store
 Thumbs.db
 desktop.ini
+*.lnk
+$RECYCLE.BIN/
 
 # --- Editors ---
 .vscode/
 .idea/
 *.swp
 *.swo
+*.swn
 *~
 .claude/
+.vimrc.local
 
 # --- Docker ---
 .docker/
 
+# --- Git restructure backups ---
+.git.backup*
+*.git.backup-*
+
 # --- Misc ---
 *.bak
 *.tmp
+.cache/

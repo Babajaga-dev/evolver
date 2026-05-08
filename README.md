@@ -48,7 +48,7 @@ Vincoli architetturali non negoziabili:
 ## Struttura del repo
 
 ```
-Evolver/
+evolver/                  # repo root (github.com/Babajaga-dev/evolver)
 ├── backend/              # Python: FastAPI + workers + ML/GA
 │   ├── app/              # codice applicativo
 │   │   ├── api/          # endpoint REST
