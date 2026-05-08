@@ -95,6 +95,86 @@ export interface IndicatorResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Backtest
+// ---------------------------------------------------------------------------
+
+export interface StrategyParamInfo {
+  name: string;
+  type: "int" | "float" | "str";
+  default: number | string;
+  min?: number | null;
+  max?: number | null;
+  description?: string;
+}
+
+export interface StrategyInfo {
+  id: string;
+  label: string;
+  family: "trend_follow" | "mean_reversion" | "breakout" | "volatility";
+  description: string;
+  params: StrategyParamInfo[];
+}
+
+export interface StrategiesRegistryResponse {
+  strategies: StrategyInfo[];
+}
+
+export interface BacktestRequest {
+  symbol: string;
+  timeframe: string;
+  strategy_id: string;
+  params: Record<string, number | string>;
+  period_days: number;
+  initial_cash: number;
+}
+
+export interface TradeRecord {
+  entry_time: string;
+  exit_time: string | null;
+  entry_price: number;
+  exit_price: number | null;
+  size: number;
+  direction: string;
+  pnl: number;
+  pnl_pct: number;
+}
+
+export interface EquityPoint {
+  timestamp: string;
+  equity: number;
+  drawdown: number;
+}
+
+export interface BacktestMetrics {
+  total_return: number;
+  sharpe: number | null;
+  sortino: number | null;
+  calmar: number | null;
+  max_drawdown: number;
+  win_rate: number | null;
+  profit_factor: number | null;
+  n_trades: number;
+  avg_trade_pct: number | null;
+  final_equity: number;
+}
+
+export interface BacktestResponse {
+  symbol: string;
+  timeframe: string;
+  strategy_id: string;
+  strategy_label: string;
+  params: Record<string, number | string>;
+  initial_cash: number;
+  fee: number;
+  slippage: number;
+  start: string;
+  end: string;
+  equity_curve: EquityPoint[];
+  trades: TradeRecord[];
+  metrics: BacktestMetrics;
+}
+
+// ---------------------------------------------------------------------------
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
@@ -179,6 +259,16 @@ export const api = {
     const path = `/api/v1/indicators/${encodeURIComponent(symbol)}/${timeframe}?${params.toString()}`;
     return fetchJson<IndicatorResponse>(path);
   },
+
+  strategiesRegistry: () =>
+    fetchJson<StrategiesRegistryResponse>("/api/v1/strategies"),
+
+  runBacktest: (req: BacktestRequest) =>
+    fetchJson<BacktestResponse>("/api/v1/backtest/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    }),
 };
 
 export { ApiError };

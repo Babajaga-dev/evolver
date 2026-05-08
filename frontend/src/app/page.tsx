@@ -36,9 +36,9 @@ export default function Home() {
           <a className="hover:text-[--color-gold]" href="/data">
             ◆ Data Explorer
           </a>
-          <span className="text-[--color-text-muted]">
-            ◇ Backtest <span className="text-xs">(coming soon)</span>
-          </span>
+          <a className="hover:text-[--color-gold]" href="/backtest">
+            ◆ Backtest
+          </a>
           <span className="text-[--color-text-muted]">
             ◇ Population <span className="text-xs">(coming soon)</span>
           </span>

@@ -41,8 +41,13 @@ dependencies = [
     "scipy>=1.14.0",
 
     # ML / GA
-    "deap>=1.4.1",
+    "deap>=1.4.1",  # legacy/baseline GA — pymoo preferito per multi-objective
+    "pymoo>=0.6.1",  # multi-objective optimization (NSGA-II/III, MOEA/D)
     "scikit-learn>=1.5.0",
+
+    # Backtest engine vectorized (NumPy-based, miliardi candele/sec)
+    "vectorbt>=0.27.0",
+    "numba>=0.60.0",  # JIT compiler richiesto da vectorbt
 
     # LLM
     "anthropic>=0.40.0",
