@@ -69,7 +69,10 @@ secrets/
 *.db
 *.sqlite
 *.sqlite3
-data/
+# NB: pattern `data/` rimosso — collideva con frontend/src/app/data/ (Next.js
+# route). Usa path espliciti per dir di output dati locali.
+/backend/data/
+/notebooks/data/
 backfill_cache/
 *.parquet
 *.feather
