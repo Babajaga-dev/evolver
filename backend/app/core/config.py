@@ -8,10 +8,10 @@ obbligatorio.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, SecretStr, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -35,7 +35,10 @@ class Settings(BaseSettings):
     # --- API ---
     api_host: str = Field(default="0.0.0.0")  # noqa: S104 — intenzionale per container
     api_port: int = Field(default=8000)
-    api_cors_origins: list[str] = Field(
+    # NoDecode disabilita il parsing JSON automatico di pydantic-settings:
+    # senza, "http://x,http://y" viene visto come JSON malformato e crasha
+    # PRIMA che il field_validator possa intervenire.
+    api_cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:3000"],
     )
 
@@ -75,8 +78,10 @@ class Settings(BaseSettings):
     binance_use_testnet: bool = Field(default=False)
 
     # --- Trading universe ---
-    symbols: list[str] = Field(default_factory=lambda: ["BTC/USDT", "ETH/USDT"])
-    timeframes: list[str] = Field(
+    symbols: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["BTC/USDT", "ETH/USDT"]
+    )
+    timeframes: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["15m", "1h", "4h", "1d"],
     )
 
@@ -93,9 +98,19 @@ class Settings(BaseSettings):
     @field_validator("api_cors_origins", "symbols", "timeframes", mode="before")
     @classmethod
     def _split_csv(cls, v: object) -> object:
-        """Permette di passare liste come stringa CSV in env vars."""
-        if isinstance(v, str) and not v.startswith("["):
-            return [item.strip() for item in v.split(",") if item.strip()]
+        """Permette di passare liste come stringa CSV o JSON in env vars.
+
+        Con ``NoDecode`` sui campi, pydantic-settings passa qui la stringa
+        raw — siamo noi a decidere se è CSV o JSON.
+        """
+        if isinstance(v, str):
+            stripped = v.strip()
+            if stripped.startswith("["):
+                # JSON list — delega al parser standard
+                import json
+
+                return json.loads(stripped)
+            return [item.strip() for item in stripped.split(",") if item.strip()]
         return v
 
     @property
