@@ -3,9 +3,8 @@
 import { useMemo } from "react";
 import {
   Area,
+  AreaChart,
   CartesianGrid,
-  ComposedChart,
-  Line,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -63,7 +62,7 @@ export function EquityCurve({ points, initialCash, height = 380 }: Props) {
   return (
     <div style={{ width: "100%", height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart
+        <AreaChart
           data={data}
           margin={{ top: 8, right: 16, bottom: 8, left: 16 }}
         >
@@ -136,18 +135,7 @@ export function EquityCurve({ points, initialCash, height = 380 }: Props) {
             fill="url(#equityFill)"
             isAnimationActive={false}
           />
-          <Line
-            type="monotone"
-            dataKey="drawdownPct"
-            name="drawdownPct"
-            stroke="var(--color-crimson)"
-            strokeWidth={0.8}
-            dot={false}
-            yAxisId="dd"
-            isAnimationActive={false}
-            hide
-          />
-        </ComposedChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );
