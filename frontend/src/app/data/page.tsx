@@ -1,13 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CandlesTable } from "@/components/CandlesTable";
-import { PriceChart } from "@/components/PriceChart";
+import {
+  IndicatorControls,
+  type ActiveIndicator,
+} from "@/components/IndicatorControls";
+import { IndicatorPanel } from "@/components/IndicatorPanel";
+import {
+  PriceChart,
+  indicatorToOverlays,
+  type PriceOverlay,
+} from "@/components/PriceChart";
 import {
   ApiError,
   api,
   type CoverageRow,
+  type IndicatorInfo,
+  type IndicatorResponse,
   type MarketsResponse,
   type OHLCVResponse,
 } from "@/lib/api";
@@ -25,6 +36,8 @@ type RangeOption = (typeof RANGES)[number];
 export default function DataPage() {
   const [markets, setMarkets] = useState<MarketsResponse | null>(null);
   const [coverage, setCoverage] = useState<CoverageRow[]>([]);
+  const [registry, setRegistry] = useState<IndicatorInfo[]>([]);
+
   const [symbol, setSymbol] = useState<string>("BTC/USDT");
   const [timeframe, setTimeframe] = useState<string>("4h");
   const [range, setRange] = useState<RangeOption>(RANGES[2]);
@@ -33,16 +46,26 @@ export default function DataPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Carica universe + coverage al mount
+  // Stato indicatori attivi e loro risultati cachati per uid
+  const [active, setActive] = useState<ActiveIndicator[]>([]);
+  const [indicatorResults, setIndicatorResults] = useState<
+    Record<string, IndicatorResponse>
+  >({});
+
+  // Mount: registry + markets + coverage
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [m, c] = await Promise.all([api.markets(), api.coverage()]);
+        const [m, c, r] = await Promise.all([
+          api.markets(),
+          api.coverage(),
+          api.indicatorsRegistry(),
+        ]);
         if (!cancelled) {
           setMarkets(m);
           setCoverage(c);
-          // Imposta defaults dai markets se diversi
+          setRegistry(r.indicators);
           if (m.symbols.length > 0 && !m.symbols.includes(symbol)) {
             setSymbol(m.symbols[0]);
           }
@@ -54,8 +77,8 @@ export default function DataPage() {
         if (!cancelled) {
           setError(
             e instanceof ApiError
-              ? `Markets fetch failed: ${e.message}`
-              : "Markets fetch failed",
+              ? `Init failed: ${e.message}`
+              : "Init failed",
           );
         }
       }
@@ -66,7 +89,7 @@ export default function DataPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Carica candele quando cambiano filtri
+  // OHLCV fetch sui filtri
   useEffect(() => {
     if (!symbol || !timeframe) return;
     let cancelled = false;
@@ -94,9 +117,64 @@ export default function DataPage() {
     };
   }, [symbol, timeframe, range]);
 
+  // Indicators fetch — ricalcola tutti gli active quando cambia simbolo/tf/range
+  useEffect(() => {
+    if (!symbol || !timeframe || active.length === 0) {
+      setIndicatorResults({});
+      return;
+    }
+    let cancelled = false;
+    const end = new Date();
+    const start = new Date(end.getTime() - range.days * 24 * 3600 * 1000);
+
+    Promise.all(
+      active.map((ind) =>
+        api
+          .indicator(symbol, timeframe, ind.id, ind.params, {
+            start,
+            end,
+            limit: 5000,
+          })
+          .then((res) => [ind.uid, res] as const)
+          .catch((err) => {
+            console.error("indicator fetch failed", ind, err);
+            return [ind.uid, null] as const;
+          }),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      const next: Record<string, IndicatorResponse> = {};
+      for (const [uid, res] of results) {
+        if (res) next[uid] = res;
+      }
+      setIndicatorResults(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol, timeframe, range, active]);
+
   const cov = coverage.find(
     (c) => c.symbol === symbol && c.timeframe === timeframe,
   );
+
+  // Overlays per chart prezzo (da indicatori "overlay")
+  const overlays: PriceOverlay[] = useMemo(() => {
+    const out: PriceOverlay[] = [];
+    for (const ind of active) {
+      const result = indicatorResults[ind.uid];
+      if (!result || result.kind !== "overlay") continue;
+      out.push(...indicatorToOverlays(result));
+    }
+    return out;
+  }, [active, indicatorResults]);
+
+  // Pannelli (da indicatori "panel")
+  const panels = useMemo<IndicatorResponse[]>(() => {
+    return active
+      .map((ind) => indicatorResults[ind.uid])
+      .filter((r): r is IndicatorResponse => !!r && r.kind === "panel");
+  }, [active, indicatorResults]);
 
   return (
     <main className="min-h-screen px-4 py-12 md:px-8 md:py-20">
@@ -111,8 +189,9 @@ export default function DataPage() {
           Market Data
         </h1>
         <p className="mb-8 max-w-prose text-sm leading-relaxed text-[--color-text-secondary]">
-          Storico OHLCV per gli asset dell'universe attivo. I dati arrivano
-          da Binance, salvati in TimescaleDB hypertable, serviti via API.
+          Storico OHLCV per gli asset dell&apos;universe attivo + libreria di
+          indicatori tecnici. I dati arrivano da Binance, salvati in TimescaleDB,
+          serviti via API.
         </p>
 
         {/* Filters */}
@@ -146,20 +225,20 @@ export default function DataPage() {
           <Field label="Range">
             <div className="flex flex-wrap gap-1">
               {RANGES.map((r) => {
-                const active = r.days === range.days;
+                const activeRange = r.days === range.days;
                 return (
                   <button
                     key={r.label}
                     onClick={() => setRange(r)}
                     className="border px-2 py-1 font-mono text-xs transition-colors"
                     style={{
-                      borderColor: active
+                      borderColor: activeRange
                         ? "var(--color-gold)"
                         : "var(--color-surface-border)",
-                      color: active
+                      color: activeRange
                         ? "var(--color-gold)"
                         : "var(--color-text-secondary)",
-                      background: active
+                      background: activeRange
                         ? "var(--color-surface-elevated)"
                         : "transparent",
                     }}
@@ -193,13 +272,23 @@ export default function DataPage() {
           )}
         </div>
 
+        {/* Indicator controls */}
+        <IndicatorControls
+          registry={registry}
+          active={active}
+          onAdd={(next) => setActive((curr) => [...curr, next])}
+          onRemove={(uid) =>
+            setActive((curr) => curr.filter((a) => a.uid !== uid))
+          }
+        />
+
         {/* Chart */}
-        <section className="mb-10 border border-[--color-surface-border] bg-[--color-surface-card] p-4">
+        <section className="mb-6 border border-[--color-surface-border] bg-[--color-surface-card] p-4">
           <h2
             className="mb-3 text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
             style={{ fontFamily: "var(--font-serif)" }}
           >
-            Close price
+            Close price{overlays.length > 0 && ` · ${overlays.length} overlay`}
           </h2>
           {loading ? (
             <p className="font-mono text-sm text-[--color-text-muted]">
@@ -210,11 +299,27 @@ export default function DataPage() {
               ✕ {error}
             </p>
           ) : (
-            <PriceChart candles={data?.candles ?? []} />
+            <PriceChart
+              candles={data?.candles ?? []}
+              overlays={overlays}
+              height={420}
+            />
           )}
         </section>
 
-        {/* Table */}
+        {/* Indicator panels (RSI, MACD, ATR, ADX, Stoch) */}
+        {panels.length > 0 && (
+          <div className="mb-8 space-y-4">
+            {panels.map((ind, i) => (
+              <IndicatorPanel
+                key={`${ind.indicator}_${i}_${JSON.stringify(ind.params)}`}
+                indicator={ind}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Recent candles */}
         <section className="mb-16 border border-[--color-surface-border] bg-[--color-surface-card] p-4">
           <h2
             className="mb-3 text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"

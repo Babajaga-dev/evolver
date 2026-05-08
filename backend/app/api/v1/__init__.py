@@ -6,7 +6,8 @@ Convenzione: ogni router è in un file separato e viene aggregato in
 
 from fastapi import APIRouter
 
-from app.api.v1 import ohlcv
+from app.api.v1 import indicators, ohlcv
 
 router_v1 = APIRouter(prefix="/api/v1")
 router_v1.include_router(ohlcv.router)
+router_v1.include_router(indicators.router)

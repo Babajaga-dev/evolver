@@ -51,6 +51,50 @@ export interface HealthResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Indicators
+// ---------------------------------------------------------------------------
+
+export interface IndicatorParamInfo {
+  name: string;
+  type: "int" | "float" | "str";
+  default: number | string;
+  min?: number | null;
+  max?: number | null;
+  choices?: string[] | null;
+  description?: string;
+}
+
+export interface IndicatorInfo {
+  id: string;
+  label: string;
+  kind: "overlay" | "panel";
+  description: string;
+  params: IndicatorParamInfo[];
+  output_keys: string[];
+}
+
+export interface IndicatorsRegistryResponse {
+  indicators: IndicatorInfo[];
+}
+
+export interface IndicatorPoint {
+  timestamp: string;
+  values: Record<string, number | null>;
+}
+
+export interface IndicatorResponse {
+  symbol: string;
+  timeframe: string;
+  indicator: string;
+  params: Record<string, number | string>;
+  output_keys: string[];
+  count: number;
+  points: IndicatorPoint[];
+  label: string;
+  kind: "overlay" | "panel";
+}
+
+// ---------------------------------------------------------------------------
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
@@ -112,6 +156,28 @@ export const api = {
       qs ? `?${qs}` : ""
     }`;
     return fetchJson<OHLCVResponse>(path);
+  },
+
+  indicatorsRegistry: () =>
+    fetchJson<IndicatorsRegistryResponse>("/api/v1/indicators"),
+
+  indicator: (
+    symbol: string,
+    timeframe: string,
+    indicator: string,
+    indicatorParams: Record<string, number | string> = {},
+    opts: { start?: Date; end?: Date; limit?: number } = {},
+  ) => {
+    const params = new URLSearchParams();
+    params.set("indicator", indicator);
+    if (opts.start) params.set("start", opts.start.toISOString());
+    if (opts.end) params.set("end", opts.end.toISOString());
+    if (opts.limit) params.set("limit", String(opts.limit));
+    for (const [key, value] of Object.entries(indicatorParams)) {
+      params.set(key, String(value));
+    }
+    const path = `/api/v1/indicators/${encodeURIComponent(symbol)}/${timeframe}?${params.toString()}`;
+    return fetchJson<IndicatorResponse>(path);
   },
 };
 

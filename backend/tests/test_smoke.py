@@ -85,6 +85,78 @@ def test_v1_routes_registered() -> None:
     ), f"Route OHLCV mancante in: {routes}"
 
 
+def test_indicators_registry_complete() -> None:
+    """Tutti gli indicatori v1 sono registrati con params e output keys."""
+    from app.indicators import INDICATOR_REGISTRY
+
+    expected = {"rsi", "ema", "sma", "macd", "bbands", "atr", "adx", "stoch"}
+    missing = expected - set(INDICATOR_REGISTRY.keys())
+    assert not missing, f"Indicatori mancanti: {missing}"
+    for spec in INDICATOR_REGISTRY.values():
+        assert spec.params, f"Indicatore '{spec.id}' senza params"
+        assert spec.output_keys, f"Indicatore '{spec.id}' senza output_keys"
+        assert spec.kind in {"overlay", "panel"}
+
+
+def test_indicator_compute_on_synthetic_data() -> None:
+    """Computo RSI/EMA su dati sintetici — verifica end-to-end della pipeline."""
+    import numpy as np
+    import pandas as pd
+
+    from app.indicators import compute
+
+    rng = np.random.default_rng(42)
+    n = 100
+    base = 100.0 + rng.normal(0, 1, n).cumsum()
+    df = pd.DataFrame(
+        {
+            "open": base,
+            "high": base + 0.5,
+            "low": base - 0.5,
+            "close": base,
+            "volume": rng.uniform(100, 1000, n),
+        },
+        index=pd.date_range("2026-01-01", periods=n, freq="1h", tz="UTC"),
+    )
+
+    rsi_out, rsi_params = compute("rsi", df, {"period": 14})
+    assert "rsi" in rsi_out
+    assert rsi_params["period"] == 14
+    # RSI range 0-100 dopo warm-up
+    valid = rsi_out["rsi"].dropna()
+    assert len(valid) > 50
+    assert (valid >= 0).all() and (valid <= 100).all()
+
+    macd_out, _ = compute("macd", df, {})
+    assert {"macd", "signal", "histogram"} <= set(macd_out.keys())
+
+
+def test_indicator_param_validation() -> None:
+    """Params fuori range → ValueError."""
+    import pandas as pd
+
+    from app.indicators import compute
+
+    df = pd.DataFrame(
+        {
+            "open": [100.0] * 30,
+            "high": [101.0] * 30,
+            "low": [99.0] * 30,
+            "close": [100.0] * 30,
+            "volume": [1000.0] * 30,
+        },
+        index=pd.date_range("2026-01-01", periods=30, freq="1h", tz="UTC"),
+    )
+
+    # period sotto il minimo
+    try:
+        compute("rsi", df, {"period": 1})
+    except ValueError:
+        pass
+    else:  # pragma: no cover
+        raise AssertionError("ValueError attesa per period=1")
+
+
 def test_ohlcv_schemas_serialize() -> None:
     """OHLCVCandle accetta Decimal e mantiene precision via json_encoders."""
     from datetime import datetime, timezone
