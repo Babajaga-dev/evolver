@@ -23,7 +23,11 @@ services:
       ENV: prod
       DEBUG: "false"
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      # DATABASE_URL, DATABASE_URL_SYNC, REDIS_URL → da Dokploy UI
+      # DSN dei DB managed Dokploy — devono essere settate in Application →
+      # Environment (Dokploy NON li inietta automaticamente, vanno mappati qui)
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL_SYNC: ${DATABASE_URL_SYNC}
+      REDIS_URL: ${REDIS_URL}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       CLAUDE_MODEL_HAIKU: ${CLAUDE_MODEL_HAIKU:-claude-haiku-4-5-20251001}
       CLAUDE_MODEL_OPUS: ${CLAUDE_MODEL_OPUS:-claude-opus-4-6}
