@@ -34,7 +34,10 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1
+# TCP probe invece di wget HTTP — busybox wget ha bug noti con Next.js
+# standalone (Connection refused anche su server up). nc è preinstallato
+# su node:22-alpine.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD nc -z localhost 3000 || exit 1
 
 CMD ["node", "server.js"]
