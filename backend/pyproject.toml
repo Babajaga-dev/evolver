@@ -2,7 +2,9 @@
 name = "evolver-backend"
 version = "0.1.0"
 description = "Evolver — sistema di trading crypto evolutivo (backend)"
-readme = "../README.md"
+# readme intenzionalmente omesso: il vero README è in <repo-root>/README.md.
+# In container il build context è solo backend/, quindi `../README.md` non
+# è raggiungibile e hatchling fallirebbe la metadata validation.
 requires-python = ">=3.12,<3.13"
 license = { text = "Proprietary" }
 authors = [{ name = "Vincenzo Fuina", email = "vincenzo.fuina@gmail.com" }]
