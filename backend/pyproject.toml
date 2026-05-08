@@ -35,7 +35,7 @@ dependencies = [
     # Numerical / data
     "numpy>=2.1.0",
     "pandas>=2.2.0",
-    "pandas-ta-classic>=1.0.0",  # fork mantenuto di pandas-ta (pure Python, no TA-Lib C)
+    "pandas-ta-classic>=0.5.40",  # fork mantenuto di pandas-ta (pure Python, no TA-Lib C)
     "scipy>=1.14.0",
 
     # ML / GA
