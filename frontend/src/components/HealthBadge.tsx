@@ -9,6 +9,13 @@ interface HealthResponse {
   redis: boolean;
 }
 
+// Chiamata diretta cross-origin al backend pubblico — bypass del
+// rewrite Next.js, che con la rete external `dokploy-network` non
+// risolve il service alias `backend`. CORS è gestito lato FastAPI
+// via API_CORS_ORIGINS (deve includere http://evolve.lan).
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://api.evolve.lan";
+
 export function HealthBadge() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +24,7 @@ export function HealthBadge() {
     let cancelled = false;
     const fetchHealth = async () => {
       try {
-        const res = await fetch("/api/health", { cache: "no-store" });
+        const res = await fetch(`${BACKEND_URL}/health`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: HealthResponse = await res.json();
         if (!cancelled) {
