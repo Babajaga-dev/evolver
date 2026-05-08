@@ -14,7 +14,9 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "clsx": "^2.1.1",
-    "tailwind-merge": "^2.5.5"
+    "tailwind-merge": "^2.5.5",
+    "recharts": "^2.15.0",
+    "date-fns": "^4.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -29,6 +29,21 @@ export default function Home() {
           <HealthBadge />
         </div>
 
+        <nav
+          className="mt-12 flex flex-wrap gap-x-6 gap-y-2 border-t border-[--color-surface-border] pt-6 text-sm uppercase tracking-[0.25em] text-[--color-text-secondary]"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
+          <a className="hover:text-[--color-gold]" href="/data">
+            ◆ Data Explorer
+          </a>
+          <span className="text-[--color-text-muted]">
+            ◇ Backtest <span className="text-xs">(coming soon)</span>
+          </span>
+          <span className="text-[--color-text-muted]">
+            ◇ Population <span className="text-xs">(coming soon)</span>
+          </span>
+        </nav>
+
         <footer className="mt-20 text-xs text-[--color-text-muted]">
           <p>
             Paper trading mode · v0.1.0 · Costruito per BTC + ETH su Binance

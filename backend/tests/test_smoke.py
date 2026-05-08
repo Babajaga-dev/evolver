@@ -70,6 +70,44 @@ def test_fastapi_app_creates() -> None:
     assert "/version" in routes
 
 
+def test_v1_routes_registered() -> None:
+    """I router v1 (markets, coverage, ohlcv) sono inclusi."""
+    from app.main import create_app
+
+    app = create_app()
+    routes = {r.path for r in app.routes}  # type: ignore[attr-defined]
+    assert "/api/v1/markets" in routes
+    assert "/api/v1/coverage" in routes
+    # FastAPI normalizza il path param ``{symbol:path}`` rimuovendo il modificatore
+    assert any(
+        path.startswith("/api/v1/ohlcv/") and path.endswith("/{timeframe}")
+        for path in routes
+    ), f"Route OHLCV mancante in: {routes}"
+
+
+def test_ohlcv_schemas_serialize() -> None:
+    """OHLCVCandle accetta Decimal e mantiene precision via json_encoders."""
+    from datetime import datetime, timezone
+    from decimal import Decimal
+
+    from app.schemas.ohlcv import OHLCVCandle
+
+    candle = OHLCVCandle(
+        timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        symbol="BTC/USDT",
+        timeframe="4h",
+        open=Decimal("65432.12345678"),
+        high=Decimal("65500.0"),
+        low=Decimal("65400.0"),
+        close=Decimal("65450.99"),
+        volume=Decimal("123.456"),
+    )
+    dumped = candle.model_dump(mode="json")
+    assert dumped["symbol"] == "BTC/USDT"
+    # Decimal serializzato come stringa per preservare precision
+    assert dumped["open"] == "65432.12345678"
+
+
 def test_timeframe_constants() -> None:
     """I timeframe ammessi includono quelli usati nelle settings."""
     from app.exchanges.binance import TIMEFRAME_MS
