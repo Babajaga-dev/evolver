@@ -198,13 +198,13 @@ class _ProgressCallback(Callback):
         for params, fit in new_evals:
             self._state.strategies.append(
                 StrategySnapshot(
-                    chromosome=params,
-                    sharpe_robust=fit.sharpe_robust,
-                    max_drawdown_abs=fit.objectives[1],
-                    complexity=fit.objectives[2],
-                    n_trades=fit.n_trades_total,
-                    n_windows_winning=fit.n_windows_winning,
-                    generation=gen,
+                    chromosome=_native_dict(params),
+                    sharpe_robust=float(fit.sharpe_robust),
+                    max_drawdown_abs=float(fit.objectives[1]),
+                    complexity=float(fit.objectives[2]),
+                    n_trades=int(fit.n_trades_total),
+                    n_windows_winning=int(fit.n_windows_winning),
+                    generation=int(gen),
                 )
             )
         self._evals_seen = len(self._problem._last_evaluations)
@@ -214,6 +214,29 @@ class _ProgressCallback(Callback):
                 self._on_generation(self._state)
             except Exception as exc:  # pragma: no cover
                 log.exception("ga.callback.failed", error=str(exc))
+
+
+def _to_native(value: Any) -> Any:
+    """Converte numpy/pandas scalars a Python native types.
+
+    Pydantic v2 non serializza numpy.int64/float64/bool_/etc. nativamente.
+    Visto che i chromosome dict finiscono in JSON via FastAPI, dobbiamo
+    forzare il cast prima del save.
+    """
+    if isinstance(value, (np.integer,)):
+        return int(value)
+    if isinstance(value, (np.floating,)):
+        return float(value)
+    if isinstance(value, (np.bool_,)):
+        return bool(value)
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    return value
+
+
+def _native_dict(d: dict[str, Any]) -> dict[str, Any]:
+    """Cast tutti i valori numpy a Python native."""
+    return {k: _to_native(v) for k, v in d.items()}
 
 
 def _compute_diversity(X: Any) -> float:
