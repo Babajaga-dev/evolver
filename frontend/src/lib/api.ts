@@ -436,6 +436,26 @@ export const api = {
     fetchJson<GaRunStatus>(`/api/v1/ga/runs/${populationId}`),
 
   listGaRuns: () => fetchJson<GaRunsListResponse>("/api/v1/ga/runs"),
+
+  stopGaRun: (populationId: string) =>
+    fetchJson<{ population_id: string; status: string; message: string }>(
+      `/api/v1/ga/runs/${populationId}/stop`,
+      { method: "POST" },
+    ),
+
+  deleteGaRun: (populationId: string) =>
+    fetchJson<{ population_id: string; deleted: boolean }>(
+      `/api/v1/ga/runs/${populationId}`,
+      { method: "DELETE" },
+    ),
+
+  cleanupGaRuns: (statusFilter?: string) => {
+    const qs = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : "";
+    return fetchJson<{ deleted: number; ids: string[] }>(
+      `/api/v1/ga/runs${qs}`,
+      { method: "DELETE" },
+    );
+  },
 };
 
 export { ApiError };

@@ -119,7 +119,8 @@ export function FitnessLandscape({ generations, height = 280 }: Props) {
             stroke="var(--color-gold)"
             strokeWidth={1.6}
             dot={{ r: 2 }}
-            isAnimationActive={false}
+            isAnimationActive={true}
+            animationDuration={500}
           />
           <Line
             type="monotone"
@@ -128,7 +129,8 @@ export function FitnessLandscape({ generations, height = 280 }: Props) {
             stroke="var(--color-btc)"
             strokeWidth={1.2}
             dot={false}
-            isAnimationActive={false}
+            isAnimationActive={true}
+            animationDuration={500}
           />
           <Line
             type="monotone"
@@ -138,7 +140,8 @@ export function FitnessLandscape({ generations, height = 280 }: Props) {
             strokeWidth={0.9}
             strokeDasharray="3 3"
             dot={false}
-            isAnimationActive={false}
+            isAnimationActive={true}
+            animationDuration={500}
           />
         </LineChart>
       </ResponsiveContainer>

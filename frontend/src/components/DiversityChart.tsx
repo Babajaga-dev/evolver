@@ -107,7 +107,8 @@ export function DiversityChart({ generations, height = 200 }: Props) {
             stroke="#bb77ff"
             strokeWidth={1.4}
             fill="url(#diversityFill)"
-            isAnimationActive={false}
+            isAnimationActive={true}
+            animationDuration={500}
           />
         </AreaChart>
       </ResponsiveContainer>

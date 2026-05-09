@@ -3,8 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 
 import { DiversityChart } from "@/components/DiversityChart";
+import { EvolutionLog } from "@/components/EvolutionLog";
 import { FitnessLandscape } from "@/components/FitnessLandscape";
+import { ParameterHistograms } from "@/components/ParameterHistograms";
 import { ParetoFront } from "@/components/ParetoFront";
+import { PopulationCloud } from "@/components/PopulationCloud";
 import { ProgressBar } from "@/components/ProgressBar";
 import { StrategyLeaderboard } from "@/components/StrategyLeaderboard";
 import {
@@ -263,7 +266,7 @@ export default function PopulationPage() {
             </Field>
           </div>
 
-          <div className="mt-6 flex items-center gap-4">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
               onClick={handleStart}
               disabled={starting || isRunning || !strategyId}
@@ -274,6 +277,36 @@ export default function PopulationPage() {
                 : isRunning
                   ? "◇ Evolution in corso…"
                   : "◆ Start Evolution"}
+            </button>
+            {isRunning && populationId && (
+              <button
+                onClick={async () => {
+                  if (!populationId) return;
+                  try {
+                    await api.stopGaRun(populationId);
+                  } catch (e) {
+                    console.error("stop failed", e);
+                  }
+                }}
+                className="border border-[--color-crimson] bg-transparent px-4 py-2 font-mono text-xs uppercase tracking-[0.3em] text-[--color-crimson] transition-colors hover:bg-[--color-surface-elevated]"
+              >
+                ◇ Stop
+              </button>
+            )}
+            <button
+              onClick={async () => {
+                if (!confirm("Cancellare tutti i run completed/failed/cancelled?"))
+                  return;
+                try {
+                  const r = await api.cleanupGaRuns();
+                  alert(`Eliminati ${r.deleted} run.`);
+                } catch (e) {
+                  console.error("cleanup failed", e);
+                }
+              }}
+              className="border border-[--color-surface-border] bg-transparent px-4 py-2 font-mono text-xs uppercase tracking-[0.3em] text-[--color-text-muted] transition-colors hover:border-[--color-gold] hover:text-[--color-gold]"
+            >
+              ⌫ Cleanup
             </button>
             {error && (
               <span className="font-mono text-xs text-[--color-crimson]">
@@ -290,7 +323,16 @@ export default function PopulationPage() {
 
         {/* Progress header */}
         {runStatus && (
-          <section className="mb-6 border border-[--color-surface-border] bg-[--color-surface-card] p-5">
+          <section
+            className={`mb-6 border bg-[--color-surface-card] p-5 ${
+              isRunning ? "evolver-pulse" : "border-[--color-surface-border]"
+            }`}
+            style={
+              isRunning
+                ? { borderColor: "var(--color-gold)" }
+                : undefined
+            }
+          >
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 font-mono text-xs">
               <div>
                 <span
@@ -325,9 +367,41 @@ export default function PopulationPage() {
           </section>
         )}
 
+        {/* Evolution log: si vede subito come prima cosa quando il run parte */}
+        {runStatus && (
+          <section className="mb-6 border border-[--color-surface-border] bg-[--color-surface-card] p-4">
+            <h2
+              className="mb-3 text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              Evolution Log
+            </h2>
+            <EvolutionLog
+              generations={runStatus.generations}
+              strategies={runStatus.top_strategies}
+              status={runStatus.status}
+            />
+          </section>
+        )}
+
         {/* Charts */}
         {runStatus && runStatus.generations.length > 0 && (
           <>
+            {/* Population cloud — TUTTI gli individui */}
+            <section className="mb-6 border border-[--color-surface-border] bg-[--color-surface-card] p-4">
+              <h2
+                className="mb-3 text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
+                style={{ fontFamily: "var(--font-serif)" }}
+              >
+                Population Cloud · selezione naturale in atto
+              </h2>
+              <PopulationCloud
+                strategies={runStatus.top_strategies}
+                pareto={runStatus.pareto_front}
+                currentGeneration={runStatus.current_generation}
+              />
+            </section>
+
             <section className="mb-6 border border-[--color-surface-border] bg-[--color-surface-card] p-4">
               <h2
                 className="mb-3 text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
@@ -360,6 +434,17 @@ export default function PopulationPage() {
                 </h2>
                 <DiversityChart generations={runStatus.generations} />
               </div>
+            </section>
+
+            {/* Parameter histograms — convergenza dei singoli params */}
+            <section className="mb-6 border border-[--color-surface-border] bg-[--color-surface-card] p-4">
+              <h2
+                className="mb-3 text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
+                style={{ fontFamily: "var(--font-serif)" }}
+              >
+                Parameter Convergence · distribuzione popolazione (top {runStatus.top_strategies.length})
+              </h2>
+              <ParameterHistograms strategies={runStatus.top_strategies} />
             </section>
 
             <section className="mb-16 border border-[--color-surface-border] bg-[--color-surface-card] p-4">
@@ -403,6 +488,26 @@ export default function PopulationPage() {
           .input:focus {
             outline: none;
             border-color: var(--color-gold);
+          }
+        `}</style>
+        <style jsx global>{`
+          @keyframes evolverPulse {
+            0%,
+            100% {
+              box-shadow: 0 0 0 0 rgba(197, 160, 89, 0);
+            }
+            50% {
+              box-shadow: 0 0 18px 0 rgba(197, 160, 89, 0.45);
+            }
+          }
+          .evolver-pulse {
+            animation: evolverPulse 2.4s ease-in-out infinite;
+            will-change: box-shadow;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .evolver-pulse {
+              animation: none;
+            }
           }
         `}</style>
       </div>
