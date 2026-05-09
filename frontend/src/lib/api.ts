@@ -239,6 +239,90 @@ export interface WalkForwardResponse {
 }
 
 // ---------------------------------------------------------------------------
+// GA — genetic algorithm runs
+// ---------------------------------------------------------------------------
+
+export interface GaRunRequest {
+  strategy_id: string;
+  symbol: string;
+  timeframe: string;
+  period_days: number;
+  initial_cash: number;
+  population_size: number;
+  n_generations: number;
+  n_windows: number;
+  seed: number;
+}
+
+export interface GaRunCreated {
+  population_id: string;
+  status: string;
+  message: string;
+}
+
+export interface GenerationSnapshotOut {
+  generation: number;
+  best_fitness: number;
+  mean_fitness: number;
+  worst_fitness: number;
+  std_fitness: number;
+  best_sharpe_robust: number;
+  best_max_dd: number;
+  diversity: number;
+  elapsed_seconds: number;
+}
+
+export interface StrategySnapshotOut {
+  chromosome: Record<string, number | string>;
+  sharpe_robust: number;
+  max_drawdown_abs: number;
+  complexity: number;
+  n_trades: number;
+  n_windows_winning: number;
+  generation: number;
+}
+
+export type GaRunStatusValue =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed";
+
+export interface GaRunStatus {
+  population_id: string;
+  strategy_id: string;
+  symbol: string;
+  timeframe: string;
+  status: GaRunStatusValue;
+  current_generation: number;
+  total_generations: number;
+  population_size: number;
+  started_at: string | null;
+  completed_at: string | null;
+  elapsed_seconds: number;
+  error: string | null;
+  generations: GenerationSnapshotOut[];
+  pareto_front: StrategySnapshotOut[];
+  top_strategies: StrategySnapshotOut[];
+}
+
+export interface GaRunSummary {
+  population_id: string;
+  strategy_id: string;
+  symbol: string;
+  timeframe: string;
+  status: GaRunStatusValue;
+  current_generation: number;
+  total_generations: number;
+  started_at: string | null;
+  best_sharpe_robust: number | null;
+}
+
+export interface GaRunsListResponse {
+  runs: GaRunSummary[];
+}
+
+// ---------------------------------------------------------------------------
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
@@ -340,6 +424,18 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     }),
+
+  startGaRun: (req: GaRunRequest) =>
+    fetchJson<GaRunCreated>("/api/v1/ga/runs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    }),
+
+  getGaRun: (populationId: string) =>
+    fetchJson<GaRunStatus>(`/api/v1/ga/runs/${populationId}`),
+
+  listGaRuns: () => fetchJson<GaRunsListResponse>("/api/v1/ga/runs"),
 };
 
 export { ApiError };

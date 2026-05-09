@@ -1,0 +1,423 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+import { DiversityChart } from "@/components/DiversityChart";
+import { FitnessLandscape } from "@/components/FitnessLandscape";
+import { ParetoFront } from "@/components/ParetoFront";
+import { ProgressBar } from "@/components/ProgressBar";
+import { StrategyLeaderboard } from "@/components/StrategyLeaderboard";
+import {
+  ApiError,
+  api,
+  type GaRunStatus,
+  type MarketsResponse,
+  type StrategyInfo,
+} from "@/lib/api";
+
+const PERIOD_OPTIONS = [
+  { label: "180 giorni", days: 180 },
+  { label: "1 anno", days: 365 },
+  { label: "2 anni", days: 365 * 2 },
+] as const;
+
+export default function PopulationPage() {
+  const [markets, setMarkets] = useState<MarketsResponse | null>(null);
+  const [strategies, setStrategies] = useState<StrategyInfo[]>([]);
+
+  const [strategyId, setStrategyId] = useState<string>("");
+  const [symbol, setSymbol] = useState("BTC/USDT");
+  const [timeframe, setTimeframe] = useState("4h");
+  const [periodDays, setPeriodDays] = useState(365);
+  const [populationSize, setPopulationSize] = useState(30);
+  const [nGenerations, setNGenerations] = useState(15);
+  const [nWindows, setNWindows] = useState(3);
+  const [seed, setSeed] = useState(42);
+
+  const [populationId, setPopulationId] = useState<string | null>(null);
+  const [runStatus, setRunStatus] = useState<GaRunStatus | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const pollerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Mount: markets + strategies
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [m, s] = await Promise.all([
+          api.markets(),
+          api.strategiesRegistry(),
+        ]);
+        if (!cancelled) {
+          setMarkets(m);
+          setStrategies(s.strategies);
+          if (s.strategies.length > 0) setStrategyId(s.strategies[0].id);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(
+            e instanceof ApiError ? `Init failed: ${e.message}` : "Init failed",
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Polling 1Hz quando c'è un run attivo
+  useEffect(() => {
+    if (!populationId) return;
+
+    const poll = async () => {
+      try {
+        const s = await api.getGaRun(populationId);
+        setRunStatus(s);
+        if (s.status === "completed" || s.status === "failed") {
+          if (pollerRef.current) {
+            clearInterval(pollerRef.current);
+            pollerRef.current = null;
+          }
+        }
+      } catch (e) {
+        console.error("ga poll failed", e);
+      }
+    };
+
+    poll(); // immediate first poll
+    pollerRef.current = setInterval(poll, 1000);
+
+    return () => {
+      if (pollerRef.current) {
+        clearInterval(pollerRef.current);
+        pollerRef.current = null;
+      }
+    };
+  }, [populationId]);
+
+  const handleStart = async () => {
+    if (!strategyId) return;
+    setStarting(true);
+    setError(null);
+    setRunStatus(null);
+    try {
+      const created = await api.startGaRun({
+        strategy_id: strategyId,
+        symbol,
+        timeframe,
+        period_days: periodDays,
+        initial_cash: 10_000,
+        population_size: populationSize,
+        n_generations: nGenerations,
+        n_windows: nWindows,
+        seed,
+      });
+      setPopulationId(created.population_id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Start failed");
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const isRunning =
+    runStatus !== null &&
+    (runStatus.status === "pending" || runStatus.status === "running");
+
+  const progress =
+    runStatus && runStatus.total_generations > 0
+      ? runStatus.current_generation / runStatus.total_generations
+      : 0;
+
+  return (
+    <main className="min-h-screen px-4 py-12 md:px-8 md:py-20">
+      <div className="mx-auto max-w-6xl">
+        <p className="mb-2 text-xs uppercase tracking-[0.4em] text-[--color-gold]">
+          Evolver — Population
+        </p>
+        <h1
+          className="mb-6 text-3xl md:text-5xl"
+          style={{ fontFamily: "var(--font-deco)", letterSpacing: "0.08em" }}
+        >
+          Genetic Evolution
+        </h1>
+        <p className="mb-8 max-w-prose text-sm leading-relaxed text-[--color-text-secondary]">
+          Una popolazione di cromosomi (parametri di una strategia) viene
+          fatta evolvere con NSGA-II multi-obiettivo: massimizzare Sharpe
+          robusto sulla walk-forward, minimizzare drawdown peggiore,
+          mantenere semplicità. Ogni generazione la dashboard si aggiorna
+          live.
+        </p>
+
+        {/* Form */}
+        <section className="mb-6 border border-[--color-surface-border] bg-[--color-surface-card] p-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Field label="Strategy">
+              <select
+                value={strategyId}
+                onChange={(e) => setStrategyId(e.target.value)}
+                className="select"
+              >
+                {strategies.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Symbol">
+              <select
+                value={symbol}
+                onChange={(e) => setSymbol(e.target.value)}
+                className="select"
+              >
+                {(markets?.symbols ?? [symbol]).map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Timeframe">
+              <select
+                value={timeframe}
+                onChange={(e) => setTimeframe(e.target.value)}
+                className="select"
+              >
+                {(markets?.timeframes ?? [timeframe]).map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Period">
+              <select
+                value={String(periodDays)}
+                onChange={(e) => setPeriodDays(parseInt(e.target.value, 10))}
+                className="select"
+              >
+                {PERIOD_OPTIONS.map((p) => (
+                  <option key={p.days} value={p.days}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Population size">
+              <input
+                type="number"
+                min={10}
+                max={200}
+                value={populationSize}
+                onChange={(e) => setPopulationSize(parseInt(e.target.value, 10))}
+                className="input"
+              />
+            </Field>
+            <Field label="N generations">
+              <input
+                type="number"
+                min={2}
+                max={200}
+                value={nGenerations}
+                onChange={(e) => setNGenerations(parseInt(e.target.value, 10))}
+                className="input"
+              />
+            </Field>
+            <Field label="Walk-forward windows">
+              <input
+                type="number"
+                min={2}
+                max={10}
+                value={nWindows}
+                onChange={(e) => setNWindows(parseInt(e.target.value, 10))}
+                className="input"
+              />
+            </Field>
+            <Field label="Seed">
+              <input
+                type="number"
+                min={0}
+                value={seed}
+                onChange={(e) => setSeed(parseInt(e.target.value, 10))}
+                className="input"
+              />
+            </Field>
+          </div>
+
+          <div className="mt-6 flex items-center gap-4">
+            <button
+              onClick={handleStart}
+              disabled={starting || isRunning || !strategyId}
+              className="border border-[--color-btc] bg-transparent px-6 py-2 font-mono text-sm uppercase tracking-[0.3em] text-[--color-btc] transition-colors hover:bg-[--color-surface-elevated] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {starting
+                ? "◇ Starting…"
+                : isRunning
+                  ? "◇ Evolution in corso…"
+                  : "◆ Start Evolution"}
+            </button>
+            {error && (
+              <span className="font-mono text-xs text-[--color-crimson]">
+                ✕ {error}
+              </span>
+            )}
+            {runStatus?.error && (
+              <span className="font-mono text-xs text-[--color-crimson]">
+                ✕ {runStatus.error}
+              </span>
+            )}
+          </div>
+        </section>
+
+        {/* Progress header */}
+        {runStatus && (
+          <section className="mb-6 border border-[--color-surface-border] bg-[--color-surface-card] p-5">
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 font-mono text-xs">
+              <div>
+                <span
+                  className="mr-3 uppercase tracking-[0.3em] text-[--color-gold]"
+                  style={{ fontFamily: "var(--font-serif)" }}
+                >
+                  {runStatus.status === "running"
+                    ? "RUNNING"
+                    : runStatus.status === "completed"
+                      ? "COMPLETED"
+                      : runStatus.status === "failed"
+                        ? "FAILED"
+                        : "PENDING"}
+                </span>
+                <span className="text-[--color-text-secondary]">
+                  population <span className="text-[--color-gold]">{runStatus.population_id}</span>{" "}
+                  · {runStatus.strategy_id} · {runStatus.symbol}{" "}
+                  {runStatus.timeframe}
+                </span>
+              </div>
+              <div className="text-[--color-text-secondary]">
+                gen {runStatus.current_generation}/{runStatus.total_generations}
+                {" · "}
+                {formatElapsed(runStatus.elapsed_seconds)}
+              </div>
+            </div>
+            <ProgressBar
+              mode="determinate"
+              value={progress}
+              detail={`${(progress * 100).toFixed(0)}%`}
+            />
+          </section>
+        )}
+
+        {/* Charts */}
+        {runStatus && runStatus.generations.length > 0 && (
+          <>
+            <section className="mb-6 border border-[--color-surface-border] bg-[--color-surface-card] p-4">
+              <h2
+                className="mb-3 text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
+                style={{ fontFamily: "var(--font-serif)" }}
+              >
+                Fitness Landscape · Sharpe robusto
+              </h2>
+              <FitnessLandscape generations={runStatus.generations} />
+            </section>
+
+            <section className="mb-6 grid gap-4 md:grid-cols-2">
+              <div className="border border-[--color-surface-border] bg-[--color-surface-card] p-4">
+                <h2
+                  className="mb-3 text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
+                  style={{ fontFamily: "var(--font-serif)" }}
+                >
+                  Pareto Front
+                </h2>
+                <ParetoFront
+                  pareto={runStatus.pareto_front}
+                  background={runStatus.top_strategies}
+                />
+              </div>
+              <div className="border border-[--color-surface-border] bg-[--color-surface-card] p-4">
+                <h2
+                  className="mb-3 text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
+                  style={{ fontFamily: "var(--font-serif)" }}
+                >
+                  Diversity
+                </h2>
+                <DiversityChart generations={runStatus.generations} />
+              </div>
+            </section>
+
+            <section className="mb-16 border border-[--color-surface-border] bg-[--color-surface-card] p-4">
+              <h2
+                className="mb-3 text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
+                style={{ fontFamily: "var(--font-serif)" }}
+              >
+                Top Strategies · ranked by Sharpe robust
+              </h2>
+              <StrategyLeaderboard
+                strategies={runStatus.top_strategies}
+                maxRows={10}
+              />
+            </section>
+          </>
+        )}
+
+        <footer className="mt-12 text-xs text-[--color-text-muted]">
+          <a
+            href="/"
+            className="hover:text-[--color-gold]"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            ← Back to home
+          </a>
+        </footer>
+
+        <style jsx>{`
+          .select,
+          .input {
+            width: 100%;
+            border: 1px solid var(--color-surface-border);
+            background: var(--color-surface);
+            padding: 0.5rem 0.75rem;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--color-text-primary);
+            border-radius: 0;
+          }
+          .select:focus,
+          .input:focus {
+            outline: none;
+            border-color: var(--color-gold);
+          }
+        `}</style>
+      </div>
+    </main>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span
+        className="mb-1.5 block text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
+        style={{ fontFamily: "var(--font-serif)" }}
+      >
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}m ${s.toString().padStart(2, "0")}s`;
+}
