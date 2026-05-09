@@ -171,7 +171,7 @@ async def list_ga_runs() -> GaRunsListResponse:
     summaries: list[GaRunSummary] = []
     for state in states:
         best = (
-            max(state.strategies, key=lambda s: s.sharpe_robust).sharpe_robust
+            float(max(state.strategies, key=lambda s: s.sharpe_robust).sharpe_robust)
             if state.strategies
             else None
         )
@@ -182,8 +182,8 @@ async def list_ga_runs() -> GaRunsListResponse:
                 symbol=state.config.symbol,
                 timeframe=state.config.timeframe,
                 status=state.status,
-                current_generation=state.current_generation,
-                total_generations=state.config.n_generations,
+                current_generation=int(state.current_generation),
+                total_generations=int(state.config.n_generations),
                 started_at=(
                     datetime.fromtimestamp(state.started_at, tz=timezone.utc)
                     if state.started_at
@@ -197,6 +197,70 @@ async def list_ga_runs() -> GaRunsListResponse:
         reverse=True,
     )
     return GaRunsListResponse(runs=summaries)
+
+
+@router.post("/ga/runs/{population_id}/stop")
+async def stop_ga_run(population_id: str) -> dict:
+    """Richiesta di stop graceful: il GA terminerà alla fine della
+    generazione in corso (può richiedere fino a ~1 generazione di tempo).
+    """
+    state = await state_store.get_state(population_id)
+    if state is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{population_id}' non trovato",
+        )
+    if state.status not in {"pending", "running"}:
+        return {
+            "population_id": population_id,
+            "status": state.status,
+            "message": f"Run è già in stato '{state.status}', stop non applicabile",
+        }
+    state.should_stop = True
+    await state_store.save_state(state)
+    log.info("ga.run.stop_requested", population_id=population_id)
+    return {
+        "population_id": population_id,
+        "status": "stopping",
+        "message": "Stop richiesto. Il run terminerà alla fine della generazione corrente.",
+    }
+
+
+@router.delete("/ga/runs/{population_id}")
+async def delete_ga_run(population_id: str) -> dict:
+    """Cancella un run dalla persistence (Redis). Utile per cleanup di run
+    falliti / vecchi.
+    """
+    deleted = await state_store.delete_state(population_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Run '{population_id}' non trovato",
+        )
+    log.info("ga.run.deleted", population_id=population_id)
+    return {"population_id": population_id, "deleted": True}
+
+
+@router.delete("/ga/runs")
+async def cleanup_ga_runs(
+    status_filter: str | None = None,
+) -> dict:
+    """Bulk cleanup. ``status_filter='failed'`` cancella solo i run falliti.
+    Senza filter, cancella *tutti* i run (uso amministrativo).
+    """
+    states = await state_store.list_states(limit=200)
+    deleted_ids: list[str] = []
+    for s in states:
+        if status_filter is not None and s.status != status_filter:
+            continue
+        # Non cancelliamo run in esecuzione (rischio di disallinearsi)
+        if s.status in {"pending", "running"}:
+            continue
+        ok = await state_store.delete_state(s.population_id)
+        if ok:
+            deleted_ids.append(s.population_id)
+    log.info("ga.runs.bulk_deleted", n=len(deleted_ids), filter=status_filter)
+    return {"deleted": len(deleted_ids), "ids": deleted_ids}
 
 
 @router.get("/ga/runs/{population_id}", response_model=GaRunStatus)
@@ -244,15 +308,15 @@ async def get_ga_run_status(population_id: str) -> GaRunStatus:
         error=state.error,
         generations=[
             GenerationSnapshotOut(
-                generation=g.generation,
-                best_fitness=g.best_fitness,
-                mean_fitness=g.mean_fitness,
-                worst_fitness=g.worst_fitness,
-                std_fitness=g.std_fitness,
-                best_sharpe_robust=g.best_sharpe_robust,
-                best_max_dd=g.best_max_dd,
-                diversity=g.diversity,
-                elapsed_seconds=g.elapsed_seconds,
+                generation=int(g.generation),
+                best_fitness=float(g.best_fitness),
+                mean_fitness=float(g.mean_fitness),
+                worst_fitness=float(g.worst_fitness),
+                std_fitness=float(g.std_fitness),
+                best_sharpe_robust=float(g.best_sharpe_robust),
+                best_max_dd=float(g.best_max_dd),
+                diversity=float(g.diversity),
+                elapsed_seconds=float(g.elapsed_seconds),
             )
             for g in state.generations
         ],
@@ -266,15 +330,37 @@ async def get_ga_run_status(population_id: str) -> GaRunStatus:
 # ---------------------------------------------------------------------------
 
 
+def _to_native(value: Any) -> Any:
+    """Cast numpy/pandas scalars → Python native (Pydantic-safe).
+
+    Difensivo: anche se runner.py fa già il cast a save time, gli state
+    pre-fix sono in Redis con numpy types ancora dentro, quindi facciamo
+    un secondo cast in lettura.
+    """
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        return float(value)
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    return value
+
+
+def _native_dict(d: dict[str, Any]) -> dict[str, Any]:
+    return {k: _to_native(v) for k, v in d.items()}
+
+
 def _to_strategy_out(s: Any) -> StrategySnapshotOut:
     return StrategySnapshotOut(
-        chromosome=s.chromosome,
-        sharpe_robust=s.sharpe_robust,
-        max_drawdown_abs=s.max_drawdown_abs,
-        complexity=s.complexity,
-        n_trades=s.n_trades,
-        n_windows_winning=s.n_windows_winning,
-        generation=s.generation,
+        chromosome=_native_dict(s.chromosome),
+        sharpe_robust=float(s.sharpe_robust),
+        max_drawdown_abs=float(s.max_drawdown_abs),
+        complexity=float(s.complexity),
+        n_trades=int(s.n_trades),
+        n_windows_winning=int(s.n_windows_winning),
+        generation=int(s.generation),
     )
 
 

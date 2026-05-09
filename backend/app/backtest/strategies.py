@@ -123,9 +123,10 @@ STRATEGY_REGISTRY: dict[str, StrategySpec] = {
             "efficace in mercati range-bound."
         ),
         params=(
-            ParamSpec("rsi_period", "int", default=14, min=2, max=200),
-            ParamSpec("buy_below", "float", default=30.0, min=10.0, max=45.0),
-            ParamSpec("sell_above", "float", default=70.0, min=55.0, max=90.0),
+            # period 5-50: 5 = molto reattivo, 50 ~8gg su 4h, oltre perde senso
+            ParamSpec("rsi_period", "int", default=14, min=5, max=50),
+            ParamSpec("buy_below", "float", default=30.0, min=15.0, max=40.0),
+            ParamSpec("sell_above", "float", default=70.0, min=60.0, max=85.0),
         ),
         fn=_rsi_mean_reversion,
     ),
@@ -136,11 +137,11 @@ STRATEGY_REGISTRY: dict[str, StrategySpec] = {
         description=(
             "Golden cross / death cross su due EMA. Entry quando la fast "
             "incrocia al rialzo la slow, exit al cross-down. Classico trend "
-            "follow, lag intrinseco."
+            "follow, lag intrinseco. Constraint: fast < slow."
         ),
         params=(
-            ParamSpec("fast", "int", default=12, min=2, max=100),
-            ParamSpec("slow", "int", default=26, min=10, max=300),
+            ParamSpec("fast", "int", default=12, min=5, max=50),
+            ParamSpec("slow", "int", default=26, min=20, max=200),
         ),
         fn=_ema_cross,
     ),
@@ -150,12 +151,12 @@ STRATEGY_REGISTRY: dict[str, StrategySpec] = {
         family="trend_follow",
         description=(
             "MACD line vs signal line. Entry su cross-up, exit su cross-down. "
-            "Più reattivo dell'EMA cross grazie alla componente di acceleration."
+            "Più reattivo dell'EMA cross. Constraint: fast < slow."
         ),
         params=(
-            ParamSpec("fast", "int", default=12, min=2, max=100),
-            ParamSpec("slow", "int", default=26, min=3, max=200),
-            ParamSpec("signal", "int", default=9, min=2, max=50),
+            ParamSpec("fast", "int", default=12, min=5, max=30),
+            ParamSpec("slow", "int", default=26, min=15, max=80),
+            ParamSpec("signal", "int", default=9, min=3, max=20),
         ),
         fn=_macd_cross,
     ),
@@ -169,12 +170,26 @@ STRATEGY_REGISTRY: dict[str, StrategySpec] = {
             "espansione di volatilità."
         ),
         params=(
-            ParamSpec("period", "int", default=20, min=2, max=200),
-            ParamSpec("std", "float", default=2.0, min=0.5, max=4.0),
+            ParamSpec("period", "int", default=20, min=10, max=50),
+            ParamSpec("std", "float", default=2.0, min=1.0, max=3.5),
         ),
         fn=_bb_breakout,
     ),
 }
+
+
+# Constraint logici cross-strategy
+def has_invalid_constraint(strategy_id: str, params: dict[str, object]) -> bool:
+    """Ritorna True se i parametri violano un constraint logico (es. fast >= slow)."""
+    if strategy_id in {"ema_cross", "macd_cross"}:
+        fast = params.get("fast")
+        slow = params.get("slow")
+        if fast is not None and slow is not None:
+            try:
+                return int(fast) >= int(slow)  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                return False
+    return False
 
 
 def available_strategies() -> list[StrategySpec]:

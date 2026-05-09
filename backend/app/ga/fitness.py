@@ -17,6 +17,7 @@ from typing import Any
 
 import pandas as pd
 
+from app.backtest.strategies import has_invalid_constraint
 from app.backtest.walk_forward import WalkForwardResult, run_walk_forward
 
 
@@ -69,6 +70,10 @@ def compute_fitness(
         for k, v in chromosome_params.items()
         if k != "position_size_pct"
     }
+
+    # Constraint check (es. fast < slow per ema_cross/macd_cross)
+    if has_invalid_constraint(strategy_id, strategy_params):
+        return _bad_fitness(cfg, sentinel_reason="invalid_constraint")
 
     try:
         wf = run_walk_forward(

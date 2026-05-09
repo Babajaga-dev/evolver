@@ -92,17 +92,22 @@ class StrategySnapshot:
     generation: int
 
 
+class GaCancelledError(Exception):
+    """Raise quando l'utente chiede di stoppare il run."""
+
+
 @dataclass
 class RunState:
     """Stato corrente del run, accessibile tramite polling."""
 
     population_id: str
     config: GaConfig
-    status: str = "pending"  # pending | running | completed | failed
+    status: str = "pending"  # pending | running | completed | failed | cancelled
     current_generation: int = 0
     started_at: float | None = None
     completed_at: float | None = None
     error: str | None = None
+    should_stop: bool = False  # set by stop endpoint, checked dal callback
     generations: list[GenerationSnapshot] = field(default_factory=list)
     strategies: list[StrategySnapshot] = field(default_factory=list)
 
@@ -214,6 +219,12 @@ class _ProgressCallback(Callback):
                 self._on_generation(self._state)
             except Exception as exc:  # pragma: no cover
                 log.exception("ga.callback.failed", error=str(exc))
+
+        # Stop graceful: l'utente ha chiamato POST /ga/runs/{id}/stop
+        if self._state.should_stop:
+            raise GaCancelledError(
+                f"Run cancelled by user at generation {gen}"
+            )
 
 
 def _to_native(value: Any) -> Any:
@@ -340,6 +351,10 @@ class GaRunner:
                 verbose=False,
             )
             state.status = "completed"
+        except GaCancelledError as exc:
+            log.info("ga.run.cancelled", population_id=state.population_id)
+            state.status = "cancelled"
+            state.error = str(exc)
         except Exception as exc:
             log.exception("ga.run.failed", error=str(exc))
             state.status = "failed"
