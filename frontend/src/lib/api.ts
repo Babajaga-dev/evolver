@@ -374,6 +374,76 @@ export interface NewsScoreBatchResponse {
 }
 
 // ---------------------------------------------------------------------------
+// System (control panel)
+// ---------------------------------------------------------------------------
+
+export interface SystemSetting {
+  key: string;
+  value: Record<string, unknown>;
+  description: string | null;
+  category: string;
+  schema_hint: Record<string, string>;
+  updated_at: string | null;
+}
+
+export interface SystemSettingsList {
+  settings: SystemSetting[];
+}
+
+export interface SchedulerJob {
+  id: string;
+  name: string;
+  next_run: string | null;
+  trigger: string;
+  last_run_at: string | null;
+  last_status: string | null;
+  last_message: string | null;
+  last_duration_s: number | null;
+}
+
+export interface SchedulerJobsList {
+  jobs: SchedulerJob[];
+}
+
+export interface MaintenanceStats {
+  ohlcv: {
+    count: number;
+    oldest: string | null;
+    newest: string | null;
+  };
+  news: {
+    raw: number;
+    scored: number;
+    pending: number;
+  };
+  ga_postgres: {
+    populations: number;
+    generations: number;
+    strategies: number;
+    fitness_evaluations: number;
+  };
+  ga_redis: {
+    total: number;
+    by_status: Record<string, number>;
+  };
+}
+
+export type CleanupTarget =
+  | "ohlcv_old"
+  | "news_raw_old"
+  | "news_scored_all"
+  | "ga_runs_failed"
+  | "ga_runs_completed"
+  | "ga_runs_all";
+
+export interface CleanupResult {
+  target: string;
+  deleted: number;
+  dry_run: boolean;
+  details: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
@@ -538,6 +608,46 @@ export const api = {
       `/api/v1/news/score?limit=${limit}&concurrency=${concurrency}`,
       { method: "POST" },
     ),
+
+  // ---- System / control panel ----
+
+  systemSettings: () =>
+    fetchJson<SystemSettingsList>("/api/v1/system/settings"),
+
+  updateSystemSetting: (key: string, value: Record<string, unknown>) =>
+    fetchJson<SystemSetting>(
+      `/api/v1/system/settings/${encodeURIComponent(key)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value }),
+      },
+    ),
+
+  systemJobs: () => fetchJson<SchedulerJobsList>("/api/v1/system/jobs"),
+
+  runSystemJob: (jobId: string) =>
+    fetchJson<{ id: string; triggered: boolean; message: string }>(
+      `/api/v1/system/jobs/${encodeURIComponent(jobId)}/run`,
+      { method: "POST" },
+    ),
+
+  maintenanceStats: () =>
+    fetchJson<MaintenanceStats>("/api/v1/system/maintenance/stats"),
+
+  cleanup: (
+    target: CleanupTarget,
+    opts: { olderThanDays?: number; confirm?: boolean } = {},
+  ) =>
+    fetchJson<CleanupResult>("/api/v1/system/maintenance/cleanup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target,
+        older_than_days: opts.olderThanDays,
+        confirm: opts.confirm ?? false,
+      }),
+    }),
 };
 
 export { ApiError };

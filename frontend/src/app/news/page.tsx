@@ -191,10 +191,20 @@ export default function NewsPage() {
                 value={asset}
                 onChange={(e) => setAsset(e.target.value)}
                 className="border border-[--color-surface-border] bg-[--color-surface-card] px-2 py-2 text-sm text-[--color-text-primary]"
-                style={{ fontFamily: "var(--font-mono)" }}
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  colorScheme: "dark",
+                }}
               >
                 {ASSET_OPTIONS.map((a) => (
-                  <option key={a} value={a}>
+                  <option
+                    key={a}
+                    value={a}
+                    style={{
+                      backgroundColor: "#16161e",
+                      color: "#e4e4ef",
+                    }}
+                  >
                     {a || "all"}
                   </option>
                 ))}
@@ -212,10 +222,20 @@ export default function NewsPage() {
                 value={eventType}
                 onChange={(e) => setEventType(e.target.value)}
                 className="border border-[--color-surface-border] bg-[--color-surface-card] px-2 py-2 text-sm text-[--color-text-primary]"
-                style={{ fontFamily: "var(--font-mono)" }}
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  colorScheme: "dark",
+                }}
               >
                 {EVENT_TYPES.map((t) => (
-                  <option key={t} value={t}>
+                  <option
+                    key={t}
+                    value={t}
+                    style={{
+                      backgroundColor: "#16161e",
+                      color: "#e4e4ef",
+                    }}
+                  >
                     {t || "all"}
                   </option>
                 ))}

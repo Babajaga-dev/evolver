@@ -14,6 +14,7 @@ from app.models.strategy import (
     Population,
     Strategy,
 )
+from app.models.system import SystemSetting
 
 __all__ = [
     "Base",
@@ -26,4 +27,5 @@ __all__ = [
     "PaperTrade",
     "Population",
     "Strategy",
+    "SystemSetting",
 ]

@@ -15,7 +15,7 @@ from app import __version__
 from app.api import health
 from app.api.v1 import router_v1
 from app.core.config import get_settings
-from app.core.db import dispose_engine
+from app.core.db import dispose_engine, session_scope
 from app.core.logging import configure_logging, get_logger
 from app.core.redis import dispose_redis
 
@@ -44,9 +44,27 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:  # pragma: no cover
         log.warning("ga.cleanup.failed", error=str(exc))
 
+    # Seed dei system_settings di default + start dello scheduler
+    try:
+        from app.system import settings as system_settings
+        from app.system.scheduler import start_scheduler
+
+        async with session_scope() as session:
+            await system_settings.seed_defaults(session)
+
+        await start_scheduler()
+    except Exception as exc:  # pragma: no cover
+        log.warning("system.startup.failed", error=str(exc))
+
     yield
 
     log.info("shutdown")
+    try:
+        from app.system.scheduler import stop_scheduler
+
+        await stop_scheduler()
+    except Exception:  # pragma: no cover
+        pass
     await dispose_engine()
     await dispose_redis()
 

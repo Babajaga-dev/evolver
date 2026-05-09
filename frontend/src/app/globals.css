@@ -48,6 +48,20 @@ body {
   color: var(--color-text-primary);
   font-family: var(--font-body), system-ui, sans-serif;
   overflow-x: hidden;
+  /* Hint al browser: i form controls nativi devono usare il dark theme.
+     Senza questa riga, i dropdown <option> ereditano il color scheme di
+     sistema (bianco su bianco su Win light theme). */
+  color-scheme: dark;
+}
+
+/* Select / option fallback — alcuni browser (Chrome) ignorano il color-scheme
+   sul popup dropdown. Forziamo bg + colore esplicitamente. */
+select {
+  color-scheme: dark;
+}
+select option {
+  background-color: var(--color-surface-card);
+  color: var(--color-text-primary);
 }
 
 body::before {

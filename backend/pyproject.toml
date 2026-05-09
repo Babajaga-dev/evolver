@@ -59,6 +59,9 @@ dependencies = [
     # News parsing
     "feedparser>=6.0.11",
 
+    # Scheduler (lifespan-managed)
+    "apscheduler>=3.10.4",
+
     # Utilities
     "python-dateutil>=2.9.0",
     "pytz>=2024.2",
