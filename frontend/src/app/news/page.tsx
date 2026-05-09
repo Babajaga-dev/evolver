@@ -301,4 +301,34 @@ export default function NewsPage() {
         {error && (
           <div
             className="mb-4 border border-[--color-crimson] bg-[--color-crimson]/10 px-4 py-2 text-sm"
-            style={{ color: "var(--color-crimson, #
+            style={{ color: "var(--color-crimson, #e63946)" }}
+          >
+            {error}
+          </div>
+        )}
+        {toast && (
+          <div
+            className="mb-4 border border-[--color-gold] bg-[--color-surface-card] px-4 py-2 text-sm text-[--color-gold]"
+            style={{ fontFamily: "var(--font-mono)" }}
+          >
+            {toast}
+          </div>
+        )}
+
+        {/* Table */}
+        <section>
+          <NewsTable items={items} loading={loading} />
+        </section>
+
+        <footer
+          className="mt-12 border-t border-[--color-surface-border] pt-4 text-xs text-[--color-text-muted]"
+          style={{ fontFamily: "var(--font-mono)" }}
+        >
+          Sources: CoinDesk · Cointelegraph · The Block · Decrypt · Bitcoinist
+          {" · "}
+          Scoring model: claude-haiku-4-5
+        </footer>
+      </div>
+    </main>
+  );
+}
