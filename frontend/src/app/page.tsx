@@ -42,6 +42,9 @@ export default function Home() {
           <a className="hover:text-[--color-gold]" href="/population">
             ◆ Population
           </a>
+          <a className="hover:text-[--color-gold]" href="/news">
+            ◆ News
+          </a>
         </nav>
 
         <footer className="mt-20 text-xs text-[--color-text-muted]">

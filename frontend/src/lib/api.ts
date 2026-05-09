@@ -323,6 +323,57 @@ export interface GaRunsListResponse {
 }
 
 // ---------------------------------------------------------------------------
+// News
+// ---------------------------------------------------------------------------
+
+export interface NewsScore {
+  assets_mentioned: string[];
+  event_type: string;
+  factual_impact: number;
+  sentiment_score: number;
+  confidence: number;
+  ttl_hours: number;
+  reasoning: string | null;
+  model: string;
+  scored_at: string;
+}
+
+export interface NewsItem {
+  id: string;
+  source: string;
+  url: string;
+  title: string;
+  body: string | null;
+  published_at: string;
+  ingested_at: string;
+  score: NewsScore | null;
+}
+
+export interface NewsListResponse {
+  items: NewsItem[];
+  count: number;
+}
+
+export interface NewsStats {
+  total_raw: number;
+  total_scored: number;
+  scored_last_24h: number;
+  avg_sentiment_24h: number;
+  by_event_type_24h: Record<string, number>;
+}
+
+export interface NewsRefreshResponse {
+  fetched: number;
+  inserted: number;
+}
+
+export interface NewsScoreBatchResponse {
+  picked: number;
+  scored: number;
+  failed: number;
+}
+
+// ---------------------------------------------------------------------------
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
@@ -456,6 +507,37 @@ export const api = {
       { method: "DELETE" },
     );
   },
+
+  // ---- News ----
+
+  listNews: (
+    opts: {
+      limit?: number;
+      asset?: string;
+      eventType?: string;
+      onlyScored?: boolean;
+    } = {},
+  ) => {
+    const params = new URLSearchParams();
+    if (opts.limit) params.set("limit", String(opts.limit));
+    if (opts.asset) params.set("asset", opts.asset);
+    if (opts.eventType) params.set("event_type", opts.eventType);
+    if (opts.onlyScored !== undefined)
+      params.set("only_scored", String(opts.onlyScored));
+    const qs = params.toString();
+    return fetchJson<NewsListResponse>(`/api/v1/news${qs ? `?${qs}` : ""}`);
+  },
+
+  newsStats: () => fetchJson<NewsStats>("/api/v1/news/stats"),
+
+  refreshNews: () =>
+    fetchJson<NewsRefreshResponse>("/api/v1/news/refresh", { method: "POST" }),
+
+  scoreNewsBatch: (limit = 20, concurrency = 4) =>
+    fetchJson<NewsScoreBatchResponse>(
+      `/api/v1/news/score?limit=${limit}&concurrency=${concurrency}`,
+      { method: "POST" },
+    ),
 };
 
 export { ApiError };
