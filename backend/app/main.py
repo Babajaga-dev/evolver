@@ -34,6 +34,16 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         timeframes=settings.timeframes,
     )
 
+    # Cleanup GA run orphaned (backend restartato durante run)
+    try:
+        from app.ga.state import cleanup_stale_running
+
+        n_orphaned = await cleanup_stale_running(max_age_seconds=120)
+        if n_orphaned > 0:
+            log.warning("ga.cleanup.orphaned_marked_failed", n=n_orphaned)
+    except Exception as exc:  # pragma: no cover
+        log.warning("ga.cleanup.failed", error=str(exc))
+
     yield
 
     log.info("shutdown")

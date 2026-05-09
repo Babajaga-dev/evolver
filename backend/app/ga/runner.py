@@ -329,8 +329,44 @@ class GaRunner:
     async def run_async(self, state: RunState) -> RunState:
         """Wrapper asyncio: esegue il GA in un thread separato così il loop
         FastAPI non si blocca. Periodicamente fa await su un callback async
-        per persistenza DB.
+        per persistenza Redis.
+
+        Nota: il GA gira in thread (vectorbt+pymoo NumPy/numba bound), ma
+        usiamo un thread di "saver" parallelo che fa polling sullo state
+        ogni 1.5s e lo salva su Redis. Così frontend → Redis è sempre
+        max 1.5s indietro rispetto al GA in corso.
         """
-        loop = asyncio.get_event_loop()
-        # Esegue in default ThreadPoolExecutor (4 worker default sufficienti)
-        return await loop.run_in_executor(None, self.run_blocking, state)
+        from app.ga import state as state_store
+
+        # Salva subito stato pending
+        await state_store.save_state(state)
+
+        # Saver loop: polla state e salva su Redis ogni 1.5s
+        stop_event = asyncio.Event()
+
+        async def saver() -> None:
+            while not stop_event.is_set():
+                try:
+                    await state_store.save_state(state)
+                except Exception as exc:  # pragma: no cover
+                    log.warning("ga.state.save_failed", error=str(exc))
+                try:
+                    await asyncio.wait_for(stop_event.wait(), timeout=1.5)
+                except asyncio.TimeoutError:
+                    pass
+
+        saver_task = asyncio.create_task(saver())
+
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self.run_blocking, state)
+        finally:
+            # Salva stato finale + stop saver
+            stop_event.set()
+            try:
+                await asyncio.wait_for(saver_task, timeout=2.0)
+            except asyncio.TimeoutError:  # pragma: no cover
+                saver_task.cancel()
+            await state_store.save_state(state)
+
+        return state

@@ -83,6 +83,21 @@ export default function PopulationPage() {
           }
         }
       } catch (e) {
+        // 404: run scomparso (backend restartato, TTL Redis scaduto, ecc.).
+        // Stoppa polling e mostra messaggio invece di flooding console.
+        if (e instanceof ApiError && e.status === 404) {
+          if (pollerRef.current) {
+            clearInterval(pollerRef.current);
+            pollerRef.current = null;
+          }
+          setError(
+            `Run ${populationId} non più disponibile sul backend. ` +
+              `Probabilmente il container è stato riavviato. Riavvia evolution.`,
+          );
+          setPopulationId(null);
+          setRunStatus(null);
+          return;
+        }
         console.error("ga poll failed", e);
       }
     };

@@ -21,6 +21,7 @@ from app.backtest.strategies import get_strategy
 from app.core.config import get_settings
 from app.core.db import get_db_session, session_scope
 from app.core.logging import get_logger
+from app.ga import state as state_store
 from app.ga.runner import GaConfig, GaRunner, RunState
 from app.models.market import ALLOWED_TIMEFRAMES
 from app.repositories import ohlcv as ohlcv_repo
@@ -36,15 +37,6 @@ from app.schemas.ga import (
 
 router = APIRouter(tags=["ga"])
 log = get_logger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# In-memory state registry
-# ---------------------------------------------------------------------------
-
-
-_RUNS: dict[str, RunState] = {}
-_LOCK = asyncio.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -135,8 +127,8 @@ async def start_ga_run(
     )
     state = RunState(population_id=population_id, config=config)
 
-    async with _LOCK:
-        _RUNS[population_id] = state
+    # Persist initial state su Redis (frontend può subito iniziare a pollare)
+    await state_store.save_state(state)
 
     log.info(
         "ga.run.scheduled",
@@ -162,6 +154,10 @@ async def start_ga_run(
             log.exception("ga.run.error", population_id=population_id, error=str(exc))
             state.status = "failed"
             state.error = str(exc)
+            try:
+                await state_store.save_state(state)
+            except Exception:  # pragma: no cover
+                pass
 
     asyncio.create_task(_runner())
 
@@ -170,32 +166,32 @@ async def start_ga_run(
 
 @router.get("/ga/runs", response_model=GaRunsListResponse)
 async def list_ga_runs() -> GaRunsListResponse:
-    """Lista riassunto di tutti i runs in memoria."""
+    """Lista riassunto di tutti i runs in Redis."""
+    states = await state_store.list_states(limit=50)
     summaries: list[GaRunSummary] = []
-    async with _LOCK:
-        for state in _RUNS.values():
-            best = (
-                max(state.strategies, key=lambda s: s.sharpe_robust).sharpe_robust
-                if state.strategies
-                else None
+    for state in states:
+        best = (
+            max(state.strategies, key=lambda s: s.sharpe_robust).sharpe_robust
+            if state.strategies
+            else None
+        )
+        summaries.append(
+            GaRunSummary(
+                population_id=state.population_id,
+                strategy_id=state.config.strategy_id,
+                symbol=state.config.symbol,
+                timeframe=state.config.timeframe,
+                status=state.status,
+                current_generation=state.current_generation,
+                total_generations=state.config.n_generations,
+                started_at=(
+                    datetime.fromtimestamp(state.started_at, tz=timezone.utc)
+                    if state.started_at
+                    else None
+                ),
+                best_sharpe_robust=best,
             )
-            summaries.append(
-                GaRunSummary(
-                    population_id=state.population_id,
-                    strategy_id=state.config.strategy_id,
-                    symbol=state.config.symbol,
-                    timeframe=state.config.timeframe,
-                    status=state.status,
-                    current_generation=state.current_generation,
-                    total_generations=state.config.n_generations,
-                    started_at=(
-                        datetime.fromtimestamp(state.started_at, tz=timezone.utc)
-                        if state.started_at
-                        else None
-                    ),
-                    best_sharpe_robust=best,
-                )
-            )
+        )
     summaries.sort(
         key=lambda s: (s.started_at or datetime.min.replace(tzinfo=timezone.utc)),
         reverse=True,
@@ -206,8 +202,7 @@ async def list_ga_runs() -> GaRunsListResponse:
 @router.get("/ga/runs/{population_id}", response_model=GaRunStatus)
 async def get_ga_run_status(population_id: str) -> GaRunStatus:
     """Snapshot completo del run — usato dal frontend per polling."""
-    async with _LOCK:
-        state = _RUNS.get(population_id)
+    state = await state_store.get_state(population_id)
     if state is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
