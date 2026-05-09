@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DiversityChart } from "@/components/DiversityChart";
 import { EvolutionLog } from "@/components/EvolutionLog";
 import { FitnessLandscape } from "@/components/FitnessLandscape";
@@ -41,8 +42,15 @@ export default function PopulationPage() {
   const [runStatus, setRunStatus] = useState<GaRunStatus | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
 
   const pollerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const flashToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4000);
+  };
 
   // Mount: markets + strategies
   useEffect(() => {
@@ -294,16 +302,7 @@ export default function PopulationPage() {
               </button>
             )}
             <button
-              onClick={async () => {
-                if (!confirm("Cancellare tutti i run completed/failed/cancelled?"))
-                  return;
-                try {
-                  const r = await api.cleanupGaRuns();
-                  alert(`Eliminati ${r.deleted} run.`);
-                } catch (e) {
-                  console.error("cleanup failed", e);
-                }
-              }}
+              onClick={() => setCleanupOpen(true)}
               className="border border-[--color-surface-border] bg-transparent px-4 py-2 font-mono text-xs uppercase tracking-[0.3em] text-[--color-text-muted] transition-colors hover:border-[--color-gold] hover:text-[--color-gold]"
             >
               ⌫ Cleanup
@@ -511,6 +510,37 @@ export default function PopulationPage() {
           }
         `}</style>
       </div>
+
+      {/* Toast in-app (non blocca automation come l'alert nativo) */}
+      {toast && (
+        <div
+          className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 border border-[--color-gold] bg-[--color-surface-card] px-4 py-2 text-sm text-[--color-gold]"
+          style={{ fontFamily: "var(--font-mono)" }}
+          role="status"
+        >
+          {toast}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={cleanupOpen}
+        title="Cleanup runs"
+        message="Cancellare tutti i run con status completed, failed o cancelled? I run in esecuzione restano intatti."
+        confirmLabel="Conferma"
+        cancelLabel="Annulla"
+        destructive
+        onCancel={() => setCleanupOpen(false)}
+        onConfirm={async () => {
+          setCleanupOpen(false);
+          try {
+            const r = await api.cleanupGaRuns();
+            flashToast(`Eliminati ${r.deleted} run.`);
+          } catch (e) {
+            console.error("cleanup failed", e);
+            setError(e instanceof Error ? e.message : "cleanup failed");
+          }
+        }}
+      />
     </main>
   );
 }
