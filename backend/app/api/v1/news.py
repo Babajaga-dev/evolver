@@ -22,7 +22,9 @@ from app.news import (
     list_recent_news,
     score_pending_news,
 )
+from app.news.repository import get_asset_sentiment
 from app.schemas.news import (
+    AssetSentimentResponse,
     NewsItemOut,
     NewsListResponse,
     NewsRefreshResponse,
@@ -78,6 +80,25 @@ async def news_stats(
     return NewsStatsResponse(**stats)
 
 
+@router.get("/sentiment/{asset}", response_model=AssetSentimentResponse)
+async def asset_sentiment(
+    asset: str,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    hours: int = Query(default=24, ge=1, le=168),
+) -> AssetSentimentResponse:
+    """Sentiment aggregato per un asset (BTC, ETH, ...) nelle ultime N ore.
+
+    Pensato come **feature regime** per il GA: in slice futura il GA potrà
+    usare ``weighted_signal`` come segnale di context macro per modulare
+    le decisioni di entry.
+
+    Esempio:
+        GET /api/v1/news/sentiment/BTC?hours=24
+    """
+    payload = await get_asset_sentiment(session, asset=asset, hours=hours)
+    return AssetSentimentResponse(**payload)
+
+
 # ---------------------------------------------------------------------------
 # Trigger endpoints (manuali — in Fase 4 li sposteremo su scheduler)
 # ---------------------------------------------------------------------------
@@ -119,28 +140,4 @@ async def score_news_batch(
 
 
 def _to_item_out(news) -> NewsItemOut:  # type: ignore[no-untyped-def]
-    """Mappa NewsRaw (con eager-load score) → NewsItemOut Pydantic."""
-    score_out = None
-    if news.score is not None:
-        s = news.score
-        score_out = NewsScoreOut(
-            assets_mentioned=list(s.assets_mentioned or []),
-            event_type=s.event_type,
-            factual_impact=float(s.factual_impact),
-            sentiment_score=float(s.sentiment_score),
-            confidence=float(s.confidence),
-            ttl_hours=int(s.ttl_hours),
-            reasoning=s.reasoning,
-            model=s.model,
-            scored_at=s.scored_at,
-        )
-    return NewsItemOut(
-        id=news.id,
-        source=news.source,
-        url=news.url,
-        title=news.title,
-        body=news.body,
-        published_at=news.published_at,
-        ingested_at=news.ingested_at,
-        score=score_out,
-    )
+    """Mappa NewsRaw (con eager-load score) →

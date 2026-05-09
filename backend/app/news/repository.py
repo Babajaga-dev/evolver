@@ -139,35 +139,32 @@ async def get_news_stats(session: AsyncSession) -> dict[str, int | float]:
     }
 
 
-# ---------------------------------------------------------------------------
-# Write helpers
-# ---------------------------------------------------------------------------
-
-
-async def save_score(
+async def get_asset_sentiment(
     session: AsyncSession,
     *,
-    news_id: uuid.UUID,
-    score: ScoringResult,
-) -> NewsScored:
-    """Crea uno NewsScored row dal risultato di score_news().
+    asset: str,
+    hours: int = 24,
+) -> dict[str, Any]:
+    """Aggregato sentiment per un singolo asset nelle ultime N ore.
 
-    Caller gestisce il commit. Solleva se uno score esiste già per
-    questa news (uniqueness su news_id) — il chiamante deve filtrare con
-    ``get_unscored_news``.
+    Pensato come **feature di regime** per il GA: un valore sintetico che
+    riassume l'ambiente news (bullish/bearish, factual vs noise, freshness).
+
+    Returns:
+        {
+            "asset": "BTC",
+            "hours": 24,
+            "n_news": N,                       # quante news menzionano l'asset
+            "avg_sentiment": float in [-1,1],  # media pesata per confidence
+            "avg_factual_impact": float,
+            "avg_confidence": float,
+            "weighted_signal": float in [-1,1],  # sentiment * confidence * factual
+            "by_event_type": {hack: K, ...},
+            "freshest_at": iso8601 | None,
+        }
     """
-    row = NewsScored(
-        news_id=news_id,
-        assets_mentioned=score.assets_mentioned,
-        event_type=score.event_type,
-        factual_impact=score.factual_impact,
-        sentiment_score=score.sentiment_score,
-        confidence=score.confidence,
-        ttl_hours=score.ttl_hours,
-        reasoning=score.reasoning,
-        model=score.model,
-        raw_response=score.raw_response,
-    )
-    session.add(row)
-    await session.flush()  # popola row.id senza committare
-    return row
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=hours)
+    asset_upper = asset.strip().upper()
+
+    # Join news_raw + news_scored, filtra asset in array, finestra temporal

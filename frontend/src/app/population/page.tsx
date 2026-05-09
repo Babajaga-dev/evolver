@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DiversityChart } from "@/components/DiversityChart";
 import { EvolutionLog } from "@/components/EvolutionLog";
+import { SentimentBadge } from "@/components/SentimentBadge";
 import { FitnessLandscape } from "@/components/FitnessLandscape";
 import { ParameterHistograms } from "@/components/ParameterHistograms";
 import { ParetoFront } from "@/components/ParetoFront";
@@ -177,6 +178,20 @@ export default function PopulationPage() {
           mantenere semplicità. Ogni generazione la dashboard si aggiorna
           live.
         </p>
+
+        {/* News regime context per l'asset selezionato — aggiornato 60s */}
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <span
+            className="text-[10px] uppercase tracking-[0.3em]"
+            style={{
+              fontFamily: "var(--font-serif)",
+              color: "var(--color-text-muted)",
+            }}
+          >
+            News regime 24h:
+          </span>
+          <SentimentBadge asset={symbol.split("/")[0]} hours={24} compact />
+        </div>
 
         {/* Form */}
         <section className="mb-6 border border-[--color-surface-border] bg-[--color-surface-card] p-6">
@@ -514,60 +529,4 @@ export default function PopulationPage() {
       {/* Toast in-app (non blocca automation come l'alert nativo) */}
       {toast && (
         <div
-          className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 border border-[--color-gold] bg-[--color-surface-card] px-4 py-2 text-sm text-[--color-gold]"
-          style={{ fontFamily: "var(--font-mono)" }}
-          role="status"
-        >
-          {toast}
-        </div>
-      )}
-
-      <ConfirmDialog
-        open={cleanupOpen}
-        title="Cleanup runs"
-        message="Cancellare tutti i run con status completed, failed o cancelled? I run in esecuzione restano intatti."
-        confirmLabel="Conferma"
-        cancelLabel="Annulla"
-        destructive
-        onCancel={() => setCleanupOpen(false)}
-        onConfirm={async () => {
-          setCleanupOpen(false);
-          try {
-            const r = await api.cleanupGaRuns();
-            flashToast(`Eliminati ${r.deleted} run.`);
-          } catch (e) {
-            console.error("cleanup failed", e);
-            setError(e instanceof Error ? e.message : "cleanup failed");
-          }
-        }}
-      />
-    </main>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span
-        className="mb-1.5 block text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
-        style={{ fontFamily: "var(--font-serif)" }}
-      >
-        {label}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-function formatElapsed(seconds: number): string {
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}m ${s.toString().padStart(2, "0")}s`;
-}
+          classNam

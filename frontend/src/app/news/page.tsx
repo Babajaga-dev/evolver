@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { NewsStatsCards } from "@/components/NewsStatsCards";
 import { NewsTable } from "@/components/NewsTable";
+import { SentimentBadge } from "@/components/SentimentBadge";
 import {
   ApiError,
   api,
@@ -150,6 +151,12 @@ export default function NewsPage() {
           <NewsStatsCards stats={stats} loading={loading} />
         </section>
 
+        {/* Asset sentiment regime cards */}
+        <section className="mb-6 grid gap-3 md:grid-cols-2">
+          <SentimentBadge asset="BTC" hours={24} />
+          <SentimentBadge asset="ETH" hours={24} />
+        </section>
+
         {/* Event type breakdown — sub-strip */}
         {stats && Object.keys(stats.by_event_type_24h).length > 0 && (
           <section className="mb-6 flex flex-wrap items-center gap-2 border-t border-[--color-surface-border] pt-4">
@@ -294,34 +301,4 @@ export default function NewsPage() {
         {error && (
           <div
             className="mb-4 border border-[--color-crimson] bg-[--color-crimson]/10 px-4 py-2 text-sm"
-            style={{ color: "var(--color-crimson, #e63946)" }}
-          >
-            {error}
-          </div>
-        )}
-        {toast && (
-          <div
-            className="mb-4 border border-[--color-gold] bg-[--color-surface-card] px-4 py-2 text-sm text-[--color-gold]"
-            style={{ fontFamily: "var(--font-mono)" }}
-          >
-            {toast}
-          </div>
-        )}
-
-        {/* Table */}
-        <section>
-          <NewsTable items={items} loading={loading} />
-        </section>
-
-        <footer
-          className="mt-12 border-t border-[--color-surface-border] pt-4 text-xs text-[--color-text-muted]"
-          style={{ fontFamily: "var(--font-mono)" }}
-        >
-          Sources: CoinDesk · Cointelegraph · The Block · Decrypt · Bitcoinist
-          {" · "}
-          Scoring model: claude-haiku-4-5
-        </footer>
-      </div>
-    </main>
-  );
-}
+            style={{ color: "var(--color-crimson, #

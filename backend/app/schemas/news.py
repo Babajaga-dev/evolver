@@ -58,21 +58,20 @@ class NewsStatsResponse(BaseModel):
     by_event_type_24h: dict[str, int]
 
 
+class AssetSentimentResponse(BaseModel):
+    """Sentiment aggregato per un singolo asset — feature regime per il GA."""
+
+    asset: str
+    hours: int
+    n_news: int
+    avg_sentiment: float
+    avg_factual_impact: float
+    avg_confidence: float
+    weighted_signal: float
+    by_event_type: dict[str, int]
+    freshest_at: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # Trigger responses
-# ---------------------------------------------------------------------------
-
-
-class NewsRefreshResponse(BaseModel):
-    """Risposta del trigger di refresh (fetch + ingest)."""
-
-    fetched: int
-    inserted: int
-
-
-class NewsScoreBatchResponse(BaseModel):
-    """Risposta del trigger di scoring batch."""
-
-    picked: int
-    scored: int
-    failed: int
+# -----

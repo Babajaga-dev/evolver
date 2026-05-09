@@ -11,6 +11,7 @@ Pipeline:
 from app.news.ingester import fetch_and_ingest, ingest_news
 from app.news.pipeline import score_pending_news
 from app.news.repository import (
+    get_asset_sentiment,
     get_news_stats,
     get_unscored_news,
     list_recent_news,
@@ -32,11 +33,9 @@ __all__ = [
     "fetch_all_rss",
     "fetch_and_ingest",
     "fetch_rss_feed",
+    "get_asset_sentiment",
     "get_news_stats",
     "get_unscored_news",
     "ingest_news",
     "list_recent_news",
-    "save_score",
-    "score_news",
-    "score_pending_news",
-]
+    "save_sc
