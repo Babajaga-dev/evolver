@@ -88,7 +88,7 @@ async def asset_sentiment(
 ) -> AssetSentimentResponse:
     """Sentiment aggregato per un asset (BTC, ETH, ...) nelle ultime N ore.
 
-    Pensato come **feature regime** per il GA: in slice futura il GA potrà
+    Pensato come **feature regime** per il GA: in slice futura il GA potra'
     usare ``weighted_signal`` come segnale di context macro per modulare
     le decisioni di entry.
 
@@ -140,4 +140,28 @@ async def score_news_batch(
 
 
 def _to_item_out(news) -> NewsItemOut:  # type: ignore[no-untyped-def]
-    """Mappa NewsRaw (con eager-load score) →
+    """Mappa NewsRaw (con eager-load score) → NewsItemOut Pydantic."""
+    score_out = None
+    if news.score is not None:
+        s = news.score
+        score_out = NewsScoreOut(
+            assets_mentioned=list(s.assets_mentioned or []),
+            event_type=s.event_type,
+            factual_impact=float(s.factual_impact),
+            sentiment_score=float(s.sentiment_score),
+            confidence=float(s.confidence),
+            ttl_hours=int(s.ttl_hours),
+            reasoning=s.reasoning,
+            model=s.model,
+            scored_at=s.scored_at,
+        )
+    return NewsItemOut(
+        id=news.id,
+        source=news.source,
+        url=news.url,
+        title=news.title,
+        body=news.body,
+        published_at=news.published_at,
+        ingested_at=news.ingested_at,
+        score=score_out,
+    )

@@ -38,4 +38,7 @@ __all__ = [
     "get_unscored_news",
     "ingest_news",
     "list_recent_news",
-    "save_sc
+    "save_score",
+    "score_news",
+    "score_pending_news",
+]

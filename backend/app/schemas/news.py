@@ -74,4 +74,19 @@ class AssetSentimentResponse(BaseModel):
 
 # ---------------------------------------------------------------------------
 # Trigger responses
-# -----
+# ---------------------------------------------------------------------------
+
+
+class NewsRefreshResponse(BaseModel):
+    """Risposta del trigger di refresh (fetch + ingest)."""
+
+    fetched: int
+    inserted: int
+
+
+class NewsScoreBatchResponse(BaseModel):
+    """Risposta del trigger di scoring batch."""
+
+    picked: int
+    scored: int
+    failed: int
