@@ -9,6 +9,11 @@ Serializzazione: ``pickle`` perché ``RunState`` contiene dataclass nested,
 ``WalkForwardResult`` con timestamp e Pydantic fields. JSON richiederebbe
 adapter custom; pickle è OK qui — i dati arrivano solo dal nostro backend,
 mai da input untrusted (no deserialization gadget risk).
+
+Nota: usiamo un client Redis **dedicato** con ``decode_responses=False``
+perché pickle scrive bytes binari (magic byte 0x80) che il client default
+(decode_responses=True per compatibilità con altri usi) tenterebbe di
+decodificare come UTF-8 → UnicodeDecodeError.
 """
 
 from __future__ import annotations
@@ -16,11 +21,40 @@ from __future__ import annotations
 import pickle
 import time
 
+from redis.asyncio import Redis, from_url
+
+from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.core.redis import get_redis
 from app.ga.runner import RunState
 
 log = get_logger(__name__)
+
+
+# Client Redis dedicato per binary pickle data
+_binary_client: Redis | None = None
+
+
+def _get_binary_client() -> Redis:
+    """Lazy-init di un client Redis con ``decode_responses=False`` per pickle."""
+    global _binary_client
+    if _binary_client is None:
+        settings = get_settings()
+        _binary_client = from_url(
+            settings.redis_url,
+            encoding="utf-8",
+            decode_responses=False,  # ← chiave: bytes raw, no UTF-8 decode
+            max_connections=10,
+            health_check_interval=30,
+        )
+    return _binary_client
+
+
+async def dispose_binary_client() -> None:
+    """Da chiamare a shutdown del processo (eventualmente)."""
+    global _binary_client
+    if _binary_client is not None:
+        await _binary_client.aclose()
+        _binary_client = None
 
 
 # Prefix delle key Redis
@@ -42,7 +76,7 @@ def _key(population_id: str) -> str:
 
 async def save_state(state: RunState) -> None:
     """Pickle + persist su Redis. Idempotente, safe per chiamate frequenti."""
-    redis = get_redis()
+    redis = _get_binary_client()
     payload = pickle.dumps(state)
     ttl = (
         _TTL_SECONDS_FINAL
@@ -54,13 +88,10 @@ async def save_state(state: RunState) -> None:
 
 async def get_state(population_id: str) -> RunState | None:
     """Carica state. ``None`` se non esiste / scaduto."""
-    redis = get_redis()
+    redis = _get_binary_client()
     raw = await redis.get(_key(population_id))
     if raw is None:
         return None
-    if isinstance(raw, str):
-        # decode_responses=True trasforma bytes in str → riconvertiamo
-        raw = raw.encode("latin-1")
     try:
         return pickle.loads(raw)  # noqa: S301 — input solo da nostro backend
     except Exception as exc:  # pragma: no cover
@@ -73,13 +104,13 @@ async def list_states(limit: int = 50) -> list[RunState]:
 
     Usa Redis SCAN per non bloccare il server con KEYS.
     """
-    redis = get_redis()
+    redis = _get_binary_client()
     states: list[RunState] = []
     cursor = 0
     seen = 0
     while True:
         cursor, keys = await redis.scan(
-            cursor=cursor, match=f"{_KEY_PREFIX}*", count=100
+            cursor=cursor, match=f"{_KEY_PREFIX}*".encode(), count=100
         )
         for k in keys:
             if seen >= limit:
@@ -87,8 +118,6 @@ async def list_states(limit: int = 50) -> list[RunState]:
             raw = await redis.get(k)
             if raw is None:
                 continue
-            if isinstance(raw, str):
-                raw = raw.encode("latin-1")
             try:
                 states.append(pickle.loads(raw))  # noqa: S301
                 seen += 1
@@ -101,7 +130,7 @@ async def list_states(limit: int = 50) -> list[RunState]:
 
 async def delete_state(population_id: str) -> bool:
     """Cancella esplicitamente un run (es. user 'clear all')."""
-    redis = get_redis()
+    redis = _get_binary_client()
     n = await redis.delete(_key(population_id))
     return bool(n)
 
