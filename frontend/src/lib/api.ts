@@ -566,4 +566,105 @@ export const api = {
     }),
 
   getGaRun: (populationId: string) =>
-    fetchJson<GaRunStatus>(`/api/v1/ga/runs/$
+    fetchJson<GaRunStatus>(`/api/v1/ga/runs/${populationId}`),
+
+  listGaRuns: () => fetchJson<GaRunsListResponse>("/api/v1/ga/runs"),
+
+  stopGaRun: (populationId: string) =>
+    fetchJson<{ population_id: string; status: string; message: string }>(
+      `/api/v1/ga/runs/${populationId}/stop`,
+      { method: "POST" },
+    ),
+
+  deleteGaRun: (populationId: string) =>
+    fetchJson<{ population_id: string; deleted: boolean }>(
+      `/api/v1/ga/runs/${populationId}`,
+      { method: "DELETE" },
+    ),
+
+  cleanupGaRuns: (statusFilter?: string) => {
+    const qs = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : "";
+    return fetchJson<{ deleted: number; ids: string[] }>(
+      `/api/v1/ga/runs${qs}`,
+      { method: "DELETE" },
+    );
+  },
+
+  // ---- News ----
+
+  listNews: (
+    opts: {
+      limit?: number;
+      asset?: string;
+      eventType?: string;
+      onlyScored?: boolean;
+    } = {},
+  ) => {
+    const params = new URLSearchParams();
+    if (opts.limit) params.set("limit", String(opts.limit));
+    if (opts.asset) params.set("asset", opts.asset);
+    if (opts.eventType) params.set("event_type", opts.eventType);
+    if (opts.onlyScored !== undefined)
+      params.set("only_scored", String(opts.onlyScored));
+    const qs = params.toString();
+    return fetchJson<NewsListResponse>(`/api/v1/news${qs ? `?${qs}` : ""}`);
+  },
+
+  newsStats: () => fetchJson<NewsStats>("/api/v1/news/stats"),
+
+  assetSentiment: (asset: string, hours = 24) =>
+    fetchJson<AssetSentiment>(
+      `/api/v1/news/sentiment/${encodeURIComponent(asset)}?hours=${hours}`,
+    ),
+
+  refreshNews: () =>
+    fetchJson<NewsRefreshResponse>("/api/v1/news/refresh", { method: "POST" }),
+
+  scoreNewsBatch: (limit = 20, concurrency = 4) =>
+    fetchJson<NewsScoreBatchResponse>(
+      `/api/v1/news/score?limit=${limit}&concurrency=${concurrency}`,
+      { method: "POST" },
+    ),
+
+  // ---- System / control panel ----
+
+  systemSettings: () =>
+    fetchJson<SystemSettingsList>("/api/v1/system/settings"),
+
+  updateSystemSetting: (key: string, value: Record<string, unknown>) =>
+    fetchJson<SystemSetting>(
+      `/api/v1/system/settings/${encodeURIComponent(key)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value }),
+      },
+    ),
+
+  systemJobs: () => fetchJson<SchedulerJobsList>("/api/v1/system/jobs"),
+
+  runSystemJob: (jobId: string) =>
+    fetchJson<{ id: string; triggered: boolean; message: string }>(
+      `/api/v1/system/jobs/${encodeURIComponent(jobId)}/run`,
+      { method: "POST" },
+    ),
+
+  maintenanceStats: () =>
+    fetchJson<MaintenanceStats>("/api/v1/system/maintenance/stats"),
+
+  cleanup: (
+    target: CleanupTarget,
+    opts: { olderThanDays?: number; confirm?: boolean } = {},
+  ) =>
+    fetchJson<CleanupResult>("/api/v1/system/maintenance/cleanup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target,
+        older_than_days: opts.olderThanDays,
+        confirm: opts.confirm ?? false,
+      }),
+    }),
+};
+
+export { ApiError };
