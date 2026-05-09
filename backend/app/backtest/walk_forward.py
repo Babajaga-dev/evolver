@@ -97,6 +97,7 @@ def run_walk_forward(
     n_windows: int = 5,
     fee: float = 0.001,
     slippage_bps: float = 2.0,
+    position_size_pct: float = 100.0,
 ) -> WalkForwardResult:
     """Esegue walk-forward: divide df in n_windows finestre sequenziali
     contigue (no overlap) ed esegue ``BacktestEngine`` su ognuna.
@@ -135,9 +136,14 @@ def run_walk_forward(
         end_idx = n if i == n_windows - 1 else (i + 1) * window_size
         window_df = df.iloc[start_idx:end_idx]
 
-        # Skip se troppo corta (paranoia)
+        # Finestra troppo corta = errore di configurazione, NON skip silenzioso
+        # (il caller potrebbe credere n_windows=N quando in realtà si è
+        # processato N-K — bug grave per fitness/walk-forward summary)
         if len(window_df) < 50:
-            continue
+            raise ValueError(
+                f"Window {i} ha solo {len(window_df)} candele (<50): "
+                f"riduci n_windows o aumenta period_days"
+            )
 
         try:
             res: BacktestResult = engine.run(
@@ -147,6 +153,7 @@ def run_walk_forward(
                 symbol=symbol,
                 timeframe=timeframe,
                 initial_cash=initial_cash,
+                position_size_pct=position_size_pct,
             )
         except Exception:  # pragma: no cover
             # Se qualche finestra fallisce, registriamo come 0 trade

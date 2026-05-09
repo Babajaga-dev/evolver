@@ -72,7 +72,9 @@ def _ema_cross(
     entries = above & (~above.shift(1, fill_value=False))
     # Cross-down: era sopra, ora sotto
     exits = (~above) & (above.shift(1, fill_value=False))
-    return entries, exits
+    # Le prime N candele EMA hanno NaN → fillna(False) per coerenza con
+    # le altre strategie e con vectorbt (NaN booleani sono problematici)
+    return entries.fillna(False), exits.fillna(False)
 
 
 def _macd_cross(
@@ -180,15 +182,22 @@ STRATEGY_REGISTRY: dict[str, StrategySpec] = {
 
 # Constraint logici cross-strategy
 def has_invalid_constraint(strategy_id: str, params: dict[str, object]) -> bool:
-    """Ritorna True se i parametri violano un constraint logico (es. fast >= slow)."""
+    """Ritorna True se i parametri violano un constraint logico (es. fast >= slow).
+
+    Su TypeError/ValueError → True (constraint INVALIDO): un cromosoma con
+    tipi sbagliati è di fatto rotto, non vogliamo che passi il filtro.
+    Bug fix dal precedente "return False" che lasciava passare malformed
+    come validi.
+    """
     if strategy_id in {"ema_cross", "macd_cross"}:
         fast = params.get("fast")
         slow = params.get("slow")
-        if fast is not None and slow is not None:
-            try:
-                return int(fast) >= int(slow)  # type: ignore[arg-type]
-            except (TypeError, ValueError):
-                return False
+        if fast is None or slow is None:
+            return True  # missing params = constraint violato
+        try:
+            return int(fast) >= int(slow)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return True  # type errato = constraint violato
     return False
 
 

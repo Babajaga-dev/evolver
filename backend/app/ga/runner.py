@@ -22,6 +22,8 @@ from pymoo.core.mixed import (
     MixedVariableSampling,
 )
 from pymoo.core.problem import ElementwiseProblem
+from pymoo.operators.crossover.sbx import SBX
+from pymoo.operators.mutation.pm import PM
 from pymoo.optimize import minimize
 
 from app.core.logging import get_logger
@@ -86,10 +88,12 @@ class StrategySnapshot:
     chromosome: dict[str, Any]
     sharpe_robust: float
     max_drawdown_abs: float
-    complexity: float
     n_trades: int
     n_windows_winning: int
     generation: int
+    # Manteniamo `complexity` per compat schema, ma ora è sempre 0.0.
+    # Verrà rimosso dalla schema response in slice di cleanup successivo.
+    complexity: float = 0.0
 
 
 class GaCancelledError(Exception):
@@ -128,7 +132,9 @@ class _StrategyOptimizationProblem(ElementwiseProblem):
         timeframe: str,
         fitness_config: FitnessConfig,
     ) -> None:
-        super().__init__(vars=spec.pymoo_vars, n_obj=3, n_ieq_constr=0)
+        # n_obj=2: -Sharpe robusto, MaxDD. Complexity rimossa (era costante
+        # per cromosomi della stessa strategia → degenerava NSGA-II)
+        super().__init__(vars=spec.pymoo_vars, n_obj=2, n_ieq_constr=0)
         self._spec = spec
         self._df = df
         self._symbol = symbol
@@ -332,11 +338,18 @@ class GaRunner:
             problem=problem, state=state, on_generation=on_gen_sync
         )
 
+        # Operatori espliciti per Real: SBX eta=15 (exploration moderata),
+        # PM eta=20 (mutazioni piccole frequenti). I default pymoo per
+        # MixedVariableMating su Real sono eta troppo alti → bassa
+        # esplorazione → convergenza prematura su nicchie. Per Integer
+        # lasciamo i default che già usano operatori specifici con repair.
         algorithm = NSGA2(
             pop_size=self.config.population_size,
             sampling=MixedVariableSampling(),
             mating=MixedVariableMating(
-                eliminate_duplicates=MixedVariableDuplicateElimination()
+                crossover={"real": SBX(eta=15, prob=0.9)},
+                mutation={"real": PM(eta=20)},
+                eliminate_duplicates=MixedVariableDuplicateElimination(),
             ),
             eliminate_duplicates=MixedVariableDuplicateElimination(),
         )

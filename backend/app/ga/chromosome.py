@@ -49,10 +49,14 @@ UNIVERSAL_PARAMS = {
     "position_size_pct": ParamSpec(
         name="position_size_pct",
         type="float",
-        default=1.0,
-        min=0.5,
-        max=5.0,
-        description="% del capitale per trade (Kelly capped)",
+        default=50.0,
+        min=10.0,
+        max=100.0,
+        description=(
+            "% del capitale disponibile per ogni entry (10-100). "
+            "100 = all-in, 10 = molto conservativo. Letto da BacktestEngine "
+            "come 'size' di vectorbt with size_type='percent'."
+        ),
     ),
 }
 

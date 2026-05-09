@@ -5,6 +5,7 @@ Avvio: ``uv run uvicorn app.main:app --reload --port 8000``
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -43,6 +44,47 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
             log.warning("ga.cleanup.orphaned_marked_failed", n=n_orphaned)
     except Exception as exc:  # pragma: no cover
         log.warning("ga.cleanup.failed", error=str(exc))
+
+    # Auto-migrate: alembic upgrade head (idempotente). Sequenziato PRIMA
+    # di seed_defaults così la tabella system_settings esiste già.
+    # In multi-replica deploy usiamo un Postgres advisory lock per
+    # serializzare: una sola replica fa upgrade, le altre attendono e
+    # vedono "no-op". Il lock è automaticamente rilasciato quando la
+    # connessione si chiude.
+    try:
+        from alembic import command
+        from alembic.config import Config
+        from sqlalchemy import create_engine, text
+
+        def _run_migrations() -> None:
+            sync_url = settings.database_url_sync
+            engine = create_engine(sync_url, future=True)
+            # Connection separata che tiene il lock per tutta la durata di
+            # alembic.upgrade. Alembic aprirà internamente le proprie
+            # connections, ma il lock advisory è inter-session.
+            lock_id = 3842302032
+            try:
+                lock_conn = engine.connect()
+                try:
+                    lock_conn.execute(text(f"SELECT pg_advisory_lock({lock_id})"))
+                    lock_conn.commit()
+                    cfg = Config("alembic.ini")
+                    command.upgrade(cfg, "head")
+                finally:
+                    try:
+                        lock_conn.execute(
+                            text(f"SELECT pg_advisory_unlock({lock_id})")
+                        )
+                        lock_conn.commit()
+                    finally:
+                        lock_conn.close()
+            finally:
+                engine.dispose()
+
+        await asyncio.to_thread(_run_migrations)
+        log.info("alembic.upgrade.done")
+    except Exception as exc:  # pragma: no cover
+        log.warning("alembic.upgrade.failed", error=str(exc))
 
     # Seed dei system_settings di default + start dello scheduler
     try:

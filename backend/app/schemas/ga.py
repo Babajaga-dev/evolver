@@ -20,8 +20,10 @@ class GaRunRequest(BaseModel):
     period_days: int = Field(default=365, ge=90, le=365 * 5)
     initial_cash: float = Field(default=10_000.0, gt=0)
     population_size: int = Field(default=30, ge=10, le=200)
-    n_generations: int = Field(default=15, ge=2, le=200)
-    n_windows: int = Field(default=3, ge=2, le=10)
+    # n_generations >= 5: con <5 il GA è praticamente solo random sampling
+    n_generations: int = Field(default=15, ge=5, le=200)
+    # n_windows >= 4: per uno std robusto su sharpes
+    n_windows: int = Field(default=4, ge=4, le=10)
     seed: int = Field(default=42, ge=0)
 
 

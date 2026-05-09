@@ -34,7 +34,7 @@ export default function PopulationPage() {
   const [periodDays, setPeriodDays] = useState(365);
   const [populationSize, setPopulationSize] = useState(30);
   const [nGenerations, setNGenerations] = useState(15);
-  const [nWindows, setNWindows] = useState(3);
+  const [nWindows, setNWindows] = useState(4);
   const [seed, setSeed] = useState(42);
 
   const [populationId, setPopulationId] = useState<string | null>(null);
