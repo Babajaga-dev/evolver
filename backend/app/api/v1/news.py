@@ -86,17 +86,18 @@ async def asset_sentiment(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     hours: int = Query(default=24, ge=1, le=168),
 ) -> AssetSentimentResponse:
-    """Sentiment aggregato per un asset (BTC, ETH, ...) nelle ultime N ore.
-
-    Pensato come **feature regime** per il GA: in slice futura il GA potra'
-    usare ``weighted_signal`` come segnale di context macro per modulare
-    le decisioni di entry.
-
-    Esempio:
-        GET /api/v1/news/sentiment/BTC?hours=24
-    """
-    payload = await get_asset_sentiment(session, asset=asset, hours=hours)
-    return AssetSentimentResponse(**payload)
+    """Sentiment aggregato per un asset (BTC, ETH, ...) nelle ultime N ore."""
+    import traceback
+    try:
+        payload = await get_asset_sentiment(session, asset=asset, hours=hours)
+        return AssetSentimentResponse(**payload)
+    except Exception as exc:
+        log.exception("news.sentiment.endpoint_failed", asset=asset, error=str(exc))
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=500,
+            detail=f"sentiment failed: {type(exc).__name__}: {exc} | trace: {traceback.format_exc()[-500:]}",
+        )
 
 
 # ---------------------------------------------------------------------------
