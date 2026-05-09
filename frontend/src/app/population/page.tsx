@@ -529,4 +529,60 @@ export default function PopulationPage() {
       {/* Toast in-app (non blocca automation come l'alert nativo) */}
       {toast && (
         <div
-          classNam
+          className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 border border-[--color-gold] bg-[--color-surface-card] px-4 py-2 text-sm text-[--color-gold]"
+          style={{ fontFamily: "var(--font-mono)" }}
+          role="status"
+        >
+          {toast}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={cleanupOpen}
+        title="Cleanup runs"
+        message="Cancellare tutti i run con status completed, failed o cancelled? I run in esecuzione restano intatti."
+        confirmLabel="Conferma"
+        cancelLabel="Annulla"
+        destructive
+        onCancel={() => setCleanupOpen(false)}
+        onConfirm={async () => {
+          setCleanupOpen(false);
+          try {
+            const r = await api.cleanupGaRuns();
+            flashToast(`Eliminati ${r.deleted} run.`);
+          } catch (e) {
+            console.error("cleanup failed", e);
+            setError(e instanceof Error ? e.message : "cleanup failed");
+          }
+        }}
+      />
+    </main>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span
+        className="mb-1.5 block text-xs uppercase tracking-[0.3em] text-[--color-text-secondary]"
+        style={{ fontFamily: "var(--font-serif)" }}
+      >
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}m ${s.toString().padStart(2, "0")}s`;
+}
