@@ -92,8 +92,15 @@ class BacktestEngine:
         symbol: str,
         timeframe: str,
         initial_cash: float = 10_000.0,
+        position_size_pct: float = 100.0,
     ) -> BacktestResult:
-        """Esegue backtest e restituisce risultato strutturato."""
+        """Esegue backtest e restituisce risultato strutturato.
+
+        Args:
+            position_size_pct: percentuale del cash da rischiare per entry (1-100).
+                Default 100 = all-in (comportamento storico). Il GA passa
+                questo dal cromosoma per esplorare il sizing.
+        """
         spec = get_strategy(strategy_id)
         validated = spec.validate_params(params)
 
@@ -109,6 +116,9 @@ class BacktestEngine:
         # Import lazy
         import vectorbt as vbt
 
+        # position_size_pct: 4.83 → 0.0483 (frazione del cash). Clamp [0.01, 1.0].
+        size_frac = max(0.0001, min(1.0, float(position_size_pct) / 100.0))
+
         pf = vbt.Portfolio.from_signals(
             close=df["close"],
             entries=entries,
@@ -117,6 +127,8 @@ class BacktestEngine:
             fees=self.fee,
             slippage=self.slippage,
             freq=self.freq or _infer_freq(timeframe),
+            size=size_frac,
+            size_type="percent",
         )
 
         equity = pf.value()
