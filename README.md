@@ -137,3 +137,4 @@ pnpm dev
 ## Licenza
 
 Proprietario / privato. Non distribuire senza autorizzazione.
+
