@@ -146,17 +146,16 @@ async def get_asset_sentiment(
     asset: str,
     hours: int = 24,
 ) -> dict[str, Any]:
-    """Aggregato sentiment per un singolo asset nelle ultime N ore.
-
-    Pensato come **feature di regime** per il GA: un valore sintetico che
-    riassume l'ambiente news (bullish/bearish, factual vs noise, freshness).
-    """
+    """Aggregato sentiment per un singolo asset nelle ultime N ore."""
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=hours)
     asset_upper = asset.strip().upper()
 
+    # Usiamo selectinload per ottenere news_raw + news_scored insieme.
+    # Filtriamo per published_at >= cutoff su NewsRaw e per asset in array
+    # su NewsScored. Restituiamo tuple (NewsScored, published_at).
     base_q = (
-        select(NewsScored)
+        select(NewsScored, NewsRaw.published_at)
         .join(NewsRaw, NewsRaw.id == NewsScored.news_id)
         .where(
             and_(
@@ -165,8 +164,15 @@ async def get_asset_sentiment(
             )
         )
     )
-    result = await session.execute(base_q)
-    rows = list(result.scalars().all())
+    try:
+        result = await session.execute(base_q)
+        all_rows = result.all()
+    except Exception as exc:
+        log.exception("news.sentiment.query_failed", asset=asset_upper, error=str(exc))
+        raise
+
+    rows = [r[0] for r in all_rows]
+    published_dates = [r[1] for r in all_rows]
     n = len(rows)
 
     if n == 0:
@@ -203,18 +209,7 @@ async def get_asset_sentiment(
     for r in rows:
         by_event[r.event_type] = by_event.get(r.event_type, 0) + 1
 
-    freshest_q = await session.execute(
-        select(func.max(NewsRaw.published_at))
-        .select_from(NewsScored)
-        .join(NewsRaw, NewsRaw.id == NewsScored.news_id)
-        .where(
-            and_(
-                NewsScored.assets_mentioned.contains([asset_upper]),
-                NewsRaw.published_at >= cutoff,
-            )
-        )
-    )
-    freshest_dt = freshest_q.scalar()
+    freshest_dt = max(published_dates) if published_dates else None
 
     return {
         "asset": asset_upper,
