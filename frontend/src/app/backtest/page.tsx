@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { EquityCurve } from "@/components/EquityCurve";
 import { MetricCards } from "@/components/MetricCards";
+import { ProgressBar } from "@/components/ProgressBar";
 import { TradesTable } from "@/components/TradesTable";
 import { WalkForwardPanel } from "@/components/WalkForwardPanel";
 import {
@@ -14,6 +15,11 @@ import {
   type StrategyInfo,
   type WalkForwardResponse,
 } from "@/lib/api";
+
+// Stima euristica del tempo medio per backtest singolo (post warm-up vectorbt)
+const BACKTEST_AVG_S = 2.5;
+// Stima per finestra walk-forward (post warm-up)
+const WF_PER_WINDOW_AVG_S = 3;
 
 const PERIODS = [
   { label: "90 giorni", days: 90 },
@@ -47,6 +53,26 @@ export default function BacktestPage() {
   const [wfResult, setWfResult] = useState<WalkForwardResponse | null>(null);
   const [wfRunning, setWfRunning] = useState(false);
   const [wfError, setWfError] = useState<string | null>(null);
+
+  // Progress (stima tempo elapsed mentre backend lavora)
+  const [progressStart, setProgressStart] = useState<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+
+  // Tick ogni 100ms quando running
+  useEffect(() => {
+    if (!running && !wfRunning) {
+      setElapsed(0);
+      setProgressStart(null);
+      return;
+    }
+    if (progressStart === null) setProgressStart(Date.now());
+    const interval = setInterval(() => {
+      if (progressStart !== null) {
+        setElapsed((Date.now() - progressStart) / 1000);
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [running, wfRunning, progressStart]);
 
   // Mount: markets + strategies
   useEffect(() => {
@@ -344,6 +370,34 @@ export default function BacktestPage() {
               </span>
             )}
           </div>
+
+          {/* Progress bar live */}
+          {(running || wfRunning) && (
+            <div className="mt-5">
+              <ProgressBar
+                mode={walkForwardEnabled ? "determinate" : "indeterminate"}
+                value={
+                  walkForwardEnabled
+                    ? estimatedProgress(elapsed, nWindows)
+                    : undefined
+                }
+                label={
+                  walkForwardEnabled
+                    ? `Walk-forward · ${nWindows} finestre`
+                    : "Backtest in corso"
+                }
+                detail={
+                  walkForwardEnabled
+                    ? `${formatElapsed(elapsed)} · stima ${formatElapsed(
+                        nWindows * WF_PER_WINDOW_AVG_S,
+                      )}`
+                    : `${formatElapsed(elapsed)} · stima ~${formatElapsed(
+                        BACKTEST_AVG_S,
+                      )}`
+                }
+              />
+            </div>
+          )}
         </section>
 
         {/* Results */}
@@ -468,4 +522,23 @@ function paramsCompact(params: Record<string, number | string>): string {
   return Object.entries(params)
     .map(([k, v]) => `${k}=${v}`)
     .join(", ");
+}
+
+/**
+ * Stima sigmoidale del progress per walk-forward: parte rapidamente, rallenta
+ * verso 0.95 (mai 1 finché non arriva la response). Asintotica per evitare
+ * lo stallo a 100% se il backend è più lento del previsto.
+ */
+function estimatedProgress(elapsedSec: number, nWindows: number): number {
+  const expectedTotal = nWindows * WF_PER_WINDOW_AVG_S;
+  const linear = elapsedSec / expectedTotal;
+  // Asintotica a 0.95: progress = 0.95 * (1 - exp(-2 * linear))
+  return Math.min(0.95, 0.95 * (1 - Math.exp(-2 * linear)));
+}
+
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}m ${s.toString().padStart(2, "0")}s`;
 }
