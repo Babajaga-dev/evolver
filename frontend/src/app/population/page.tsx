@@ -34,7 +34,7 @@ export default function PopulationPage() {
   const [symbol, setSymbol] = useState("BTC/USDT");
   const [timeframe, setTimeframe] = useState("4h");
   const [periodDays, setPeriodDays] = useState(365);
-  const [populationSize, setPopulationSize] = useState(30);
+  const [populationSize, setPopulationSize] = useState(40);
   const [nGenerations, setNGenerations] = useState(15);
   const [nWindows, setNWindows] = useState(4);
   const [seed, setSeed] = useState(42);

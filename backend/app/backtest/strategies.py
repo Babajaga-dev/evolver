@@ -125,10 +125,13 @@ STRATEGY_REGISTRY: dict[str, StrategySpec] = {
             "efficace in mercati range-bound."
         ),
         params=(
-            # period 5-50: 5 = molto reattivo, 50 ~8gg su 4h, oltre perde senso
-            ParamSpec("rsi_period", "int", default=14, min=5, max=50),
+            # period 8-50: 5-7 era troppo reattivo (rumore puro). Postmortem
+            # 2026-05-09 ha rilevato GA collapsato su rsi_period=9 in tutte
+            # le top 10 -> forziamo minimo 8 per evitare convergenza degenere.
+            ParamSpec("rsi_period", "int", default=14, min=8, max=50),
             ParamSpec("buy_below", "float", default=30.0, min=15.0, max=40.0),
-            ParamSpec("sell_above", "float", default=70.0, min=60.0, max=85.0),
+            # sell_above esteso a 55 per dare più spazio di fuga al GA
+            ParamSpec("sell_above", "float", default=70.0, min=55.0, max=85.0),
         ),
         fn=_rsi_mean_reversion,
     ),

@@ -71,6 +71,29 @@ DEFAULT_SETTINGS: list[SettingDefinition] = [
         category="automation",
         schema={"enabled": "bool", "interval_seconds": "int"},
     ),
+    SettingDefinition(
+        key="paper.engine_tick",
+        default_value={
+            "enabled": False,
+            "interval_seconds": 900,
+            "top_n_strategies": 3,
+            "min_sharpe_robust": 0.5,
+            "portfolio_id": "paper-v1",
+        },
+        description=(
+            "Paper engine tick: legge top GA strategies dal Redis, "
+            "genera/chiude paper trades su candele live, aggiorna "
+            "equity_snapshots ogni N secondi"
+        ),
+        category="automation",
+        schema={
+            "enabled": "bool",
+            "interval_seconds": "int",
+            "top_n_strategies": "int",
+            "min_sharpe_robust": "float",
+            "portfolio_id": "str",
+        },
+    ),
 ]
 
 
