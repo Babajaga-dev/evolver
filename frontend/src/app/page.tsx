@@ -55,4 +55,10 @@ export default function Home() {
 
         <footer className="mt-20 text-xs text-[--color-text-muted]">
           <p>
-            Paper trading mode · v0.1.0 
+            Paper trading mode · v0.1.0 · Costruito per BTC + ETH su Binance
+          </p>
+        </footer>
+      </div>
+    </main>
+  );
+}
