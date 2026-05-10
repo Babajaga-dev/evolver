@@ -45,6 +45,9 @@ export default function Home() {
           <a className="hover:text-[--color-gold]" href="/news">
             ◆ News
           </a>
+          <a className="hover:text-[--color-gold]" href="/paper">
+            ◆ Paper
+          </a>
           <a className="hover:text-[--color-gold]" href="/control">
             ◆ Control
           </a>
@@ -52,10 +55,4 @@ export default function Home() {
 
         <footer className="mt-20 text-xs text-[--color-text-muted]">
           <p>
-            Paper trading mode · v0.1.0 · Costruito per BTC + ETH su Binance
-          </p>
-        </footer>
-      </div>
-    </main>
-  );
-}
+            Paper trading mode · v0.1.0 

@@ -374,6 +374,65 @@ export interface AssetSentiment {
   freshest_at: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// Paper trading
+// ---------------------------------------------------------------------------
+
+export interface PaperStateResponse {
+  portfolio_id: string;
+  initial_balance: number;
+  balance_quote: number;
+  holdings: Record<string, unknown>;
+  equity: number;
+  drawdown_from_peak: number;
+  open_positions_count: number;
+  last_snapshot_at: string | null;
+  total_return_pct: number;
+  trades_total: number;
+  trades_open: number;
+  trades_closed: number;
+  trades_winning: number;
+  win_rate: number;
+  total_pnl: number;
+  status: string;
+}
+
+export interface PaperTradeOut {
+  id: string;
+  strategy_id: string | null;
+  symbol: string;
+  timeframe: string;
+  side: string;
+  status: string;
+  quantity: number;
+  entry_price: number;
+  exit_price: number | null;
+  entry_time: string;
+  exit_time: string | null;
+  fees: number;
+  pnl: number | null;
+  pnl_pct: number | null;
+}
+
+export interface PaperTradesResponse {
+  trades: PaperTradeOut[];
+  count: number;
+}
+
+export interface PaperEquityPoint {
+  timestamp: string;
+  equity: number;
+  balance_quote: number;
+  drawdown_from_peak: number;
+  open_positions_count: number;
+}
+
+export interface EquityCurveResponse {
+  portfolio_id: string;
+  points: PaperEquityPoint[];
+  count: number;
+}
+
 export interface NewsRefreshResponse {
   fetched: number;
   inserted: number;
@@ -615,6 +674,31 @@ export const api = {
   assetSentiment: (asset: string, hours = 24) =>
     fetchJson<AssetSentiment>(
       `/api/v1/news/sentiment/${encodeURIComponent(asset)}?hours=${hours}`,
+    ),
+
+  // ---- Paper trading ----
+
+  paperState: (portfolioId = "paper-v1") =>
+    fetchJson<PaperStateResponse>(
+      `/api/v1/paper/state?portfolio_id=${encodeURIComponent(portfolioId)}`,
+    ),
+
+  paperTrades: (limit = 100, status?: string) => {
+    const qs = new URLSearchParams();
+    qs.set("limit", String(limit));
+    if (status) qs.set("status", status);
+    return fetchJson<PaperTradesResponse>(`/api/v1/paper/trades?${qs.toString()}`);
+  },
+
+  paperEquity: (hours = 168, maxPoints = 500, portfolioId = "paper-v1") =>
+    fetchJson<EquityCurveResponse>(
+      `/api/v1/paper/equity?portfolio_id=${encodeURIComponent(portfolioId)}&hours=${hours}&max_points=${maxPoints}`,
+    ),
+
+  paperCreateSnapshot: (portfolioId = "paper-v1") =>
+    fetchJson<{ portfolio_id: string; snapshot_at: string; equity: number; message: string }>(
+      `/api/v1/paper/snapshot?portfolio_id=${encodeURIComponent(portfolioId)}`,
+      { method: "POST" },
     ),
 
   refreshNews: () =>
