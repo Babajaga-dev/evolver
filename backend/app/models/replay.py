@@ -9,7 +9,7 @@ Tre tabelle:
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     DateTime,
@@ -21,7 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, CreatedAt
+from app.models.base import Base
 
 
 class ReplayRun(Base):
@@ -55,7 +55,9 @@ class ReplayRun(Base):
     last_heartbeat: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error: Mapped[str | None] = mapped_column(String(2048), nullable=True)
 
-    created_at: Mapped[datetime] = CreatedAt
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
 
     retrain_events = relationship("ReplayRetrainEvent", back_populates="run", cascade="all, delete-orphan")
     equity_snapshots = relationship("ReplayEquitySnapshot", back_populates="run", cascade="all, delete-orphan")
@@ -81,7 +83,9 @@ class ReplayRetrainEvent(Base):
     elapsed_seconds: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     equity_at_retrain: Mapped[float] = mapped_column(Float, nullable=False, default=10000.0)
 
-    created_at: Mapped[datetime] = CreatedAt
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
 
     run = relationship("ReplayRun", back_populates="retrain_events")
 
