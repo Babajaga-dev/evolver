@@ -463,6 +463,59 @@ export interface RegimeResponse {
   notes: string;
 }
 
+// ---------------------------------------------------------------------------
+// OOS Validation
+// ---------------------------------------------------------------------------
+
+export interface OosStrategyOut {
+  rank: number;
+  chromosome: Record<string, number | string>;
+  sharpe_train: number;
+  max_drawdown_train: number;
+  n_trades_train: number;
+  sharpe_test: number | null;
+  total_return_test: number;
+  max_drawdown_test: number;
+  n_trades_test: number;
+  win_rate_test: number | null;
+  final_equity_test: number;
+  degradation_pct: number | null;
+  verdict: string;
+  verdict_reason: string;
+}
+
+export interface OosEvolutionPoint {
+  generation: number;
+  best_sharpe_robust_train: number;
+  mean_sharpe_robust_train: number;
+  diversity: number;
+  best_sharpe_test: number | null;
+  best_total_return_test: number;
+  best_n_trades_test: number;
+}
+
+export interface OosResultResponse {
+  population_id: string;
+  strategy_id: string;
+  symbol: string;
+  timeframe: string;
+  train_start: string;
+  train_end: string;
+  test_start: string;
+  test_end: string;
+  test_days: number;
+  top_k: number;
+  initial_cash: number;
+  strategies: OosStrategyOut[];
+  evolution_curve: OosEvolutionPoint[];
+  overall_verdict: string;
+  overall_reason: string;
+  n_robust: number;
+  n_mixed: number;
+  n_overfit: number;
+  n_no_signal: number;
+}
+
 export interface NewsRefreshResponse {
   fetched: number;
   inserted: number;
@@ -746,6 +799,20 @@ export const api = {
     fetchJson<RegimeResponse>(
       `/api/v1/regime/${encodeURIComponent(symbol)}?timeframe=${timeframe}&lookback_candles=${lookback}`,
     ),
+
+  // ---- OOS Validation ----
+
+  oosValidate: (populationId: string, testDays = 90, topK = 10, initialCash = 10000) =>
+    fetchJson<OosResultResponse>("/api/v1/oos/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        population_id: populationId,
+        test_days: testDays,
+        top_k: topK,
+        initial_cash: initialCash,
+      }),
+    }),
 
   refreshNews: () =>
     fetchJson<NewsRefreshResponse>("/api/v1/news/refresh", { method: "POST" }),

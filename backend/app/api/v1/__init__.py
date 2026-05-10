@@ -6,7 +6,7 @@ Convenzione: ogni router è in un file separato e viene aggregato in
 
 from fastapi import APIRouter
 
-from app.api.v1 import backtest, ga, indicators, live, news, ohlcv, paper, postmortem, regime, system
+from app.api.v1 import backtest, ga, indicators, live, news, ohlcv, oos, paper, postmortem, regime, system
 
 router_v1 = APIRouter(prefix="/api/v1")
 router_v1.include_router(ohlcv.router)
@@ -18,4 +18,5 @@ router_v1.include_router(paper.router)
 router_v1.include_router(postmortem.router)
 router_v1.include_router(regime.router)
 router_v1.include_router(live.router)
+router_v1.include_router(oos.router)
 router_v1.include_router(system.router)

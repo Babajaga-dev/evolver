@@ -51,6 +51,9 @@ export default function Home() {
           <a className="hover:text-[--color-gold]" href="/regime">
             ◆ Regime
           </a>
+          <a className="hover:text-[--color-gold]" href="/oos">
+            ◆ OOS
+          </a>
           <a className="hover:text-[--color-gold]" href="/control">
             ◆ Control
           </a>
