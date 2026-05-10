@@ -364,13 +364,22 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
                 df_1h_now = await _fetch_ohlcv_window(s, cfg.symbol, "1h", recent_start, step_end)
                 df_1d_now = await _fetch_ohlcv_window(s, cfg.symbol, "1d", recent_start - timedelta(days=20), step_end)
 
-            if df_4h_now.empty:
+            if df_4h_now is None or df_4h_now.empty or len(df_4h_now) < 2:
                 # Dati assenti, avanza e riprova
                 cursor = step_end
                 continue
-
-            regime_now = await _detect_regime_series(df_1d_now)
-            sim = _compute_equity_and_drawdown(
+            if df_1d_now is None or df_1d_now.empty:
+                regime_now = pd.Series("range", index=df_4h_now.index)
+            else:
+                try:
+                    regime_now = await _detect_regime_series(df_1d_now)
+                except Exception as exc:
+                    log.warning("replay.regime_failed", error=str(exc))
+                    regime_now = pd.Series("range", index=df_4h_now.index)
+            if df_1h_now is None or df_1h_now.empty:
+                df_1h_now = df_4h_now  # fallback: use 4h candles as 1h surrogate
+            try:
+                sim = _compute_equity_and_drawdown(
                 df_4h=df_4h_now,
                 candles_by_tf={"1h": df_1h_now, "4h": df_4h_now, "1d": df_1d_now},
                 council_params=organism_params,
@@ -378,7 +387,11 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
                 initial_cash=cash,
                 fee=cfg.fee,
                 slippage_bps=cfg.slippage_bps,
-            )
+                )
+            except Exception as exc:
+                log.warning("replay.sim_failed", error=str(exc), cursor=cursor.isoformat())
+                cursor = step_end
+                continue
 
             # Aggiorna equity con l'ULTIMO bar simulato (rolling step)
             final_equity = sim["final_equity"]
