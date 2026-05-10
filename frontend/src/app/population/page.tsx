@@ -38,6 +38,7 @@ export default function PopulationPage() {
   const [nGenerations, setNGenerations] = useState(15);
   const [nWindows, setNWindows] = useState(4);
   const [seed, setSeed] = useState(42);
+  const [trainEndDaysAgo, setTrainEndDaysAgo] = useState(0);
 
   const [populationId, setPopulationId] = useState<string | null>(null);
   const [runStatus, setRunStatus] = useState<GaRunStatus | null>(null);
@@ -141,6 +142,7 @@ export default function PopulationPage() {
         n_generations: nGenerations,
         n_windows: nWindows,
         seed,
+        train_end_days_ago: trainEndDaysAgo,
       });
       setPopulationId(created.population_id);
     } catch (e) {
@@ -285,6 +287,16 @@ export default function PopulationPage() {
                 value={seed}
                 onChange={(e) => setSeed(parseInt(e.target.value, 10))}
                 className="input"
+              />
+            </Field>
+            <Field label="Train ends N days ago">
+              <input
+                type="number"
+                value={trainEndDaysAgo}
+                onChange={(e) => setTrainEndDaysAgo(parseInt(e.target.value, 10))}
+                min={0}
+                max={1460}
+                className="select"
               />
             </Field>
           </div>

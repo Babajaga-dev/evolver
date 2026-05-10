@@ -28,6 +28,10 @@ class GaRunRequest(BaseModel):
     # n_windows >= 4: per uno std robusto su sharpes
     n_windows: int = Field(default=4, ge=4, le=10)
     seed: int = Field(default=42, ge=0)
+    # train_end_days_ago: 0 (default) = il train termina ora, 90 = il train
+    # termina 90 giorni fa cosi' l'OOS validation puo' usare i successivi
+    # 90 giorni come test set fuori campione.
+    train_end_days_ago: int = Field(default=0, ge=0, le=365 * 4)
 
 
 # ---------------------------------------------------------------------------

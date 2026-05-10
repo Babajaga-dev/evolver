@@ -121,9 +121,15 @@ async def validate_oos(
         raise OosError(f"GA run '{population_id}' non ha strategie evolute")
 
     # 2. Calcola periodo test (subito DOPO train_end)
-    end_train = datetime.now(timezone.utc)
-    if state.completed_at:
+    # Priorità: cfg.train_end_at > completed_at > now
+    if cfg.train_end_at is not None:
+        end_train = cfg.train_end_at
+        if end_train.tzinfo is None:
+            end_train = end_train.replace(tzinfo=timezone.utc)
+    elif state.completed_at:
         end_train = datetime.fromtimestamp(state.completed_at, tz=timezone.utc)
+    else:
+        end_train = datetime.now(timezone.utc)
     start_train = end_train - timedelta(days=cfg.period_days)
 
     start_test = end_train

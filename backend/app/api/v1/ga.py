@@ -76,7 +76,9 @@ async def start_ga_run(
         ) from exc
 
     # Fetch OHLCV (validato + caricato qui per fail-fast prima del task)
-    end = datetime.now(timezone.utc)
+    # train_end_days_ago: 0 = ora; >0 = train termina N giorni fa per
+    # lasciare spazio a OOS validation sui dati successivi
+    end = datetime.now(timezone.utc) - timedelta(days=int(getattr(req, 'train_end_days_ago', 0) or 0))
     start = end - timedelta(days=req.period_days)
     rows = await ohlcv_repo.fetch_ohlcv(
         session=session,
@@ -124,6 +126,7 @@ async def start_ga_run(
         seed=req.seed,
         fee=settings.paper_fee_taker,
         slippage_bps=settings.paper_slippage_bps,
+        train_end_at=end,
     )
     state = RunState(population_id=population_id, config=config)
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
+from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -56,6 +57,11 @@ class GaConfig:
     seed: int = 42
     fee: float = 0.001
     slippage_bps: float = 2.0
+    # train_end_at: timestamp che indica la fine del training period.
+    # Se None, viene calcolato come datetime.now() al momento dello start.
+    # Settato esplicitamente quando l'utente vuole un GA che termina in
+    # passato (per OOS validation con dati reali successivi).
+    train_end_at: datetime | None = None
 
 
 # ---------------------------------------------------------------------------

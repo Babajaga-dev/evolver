@@ -252,6 +252,7 @@ export interface GaRunRequest {
   n_generations: number;
   n_windows: number;
   seed: number;
+  train_end_days_ago?: number;
 }
 
 export interface GaRunCreated {
