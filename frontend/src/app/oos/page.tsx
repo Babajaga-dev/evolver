@@ -47,6 +47,9 @@ export default function OosPage() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<OosResultResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [customMode, setCustomMode] = useState(false);
+  const [testStartDaysAgo, setTestStartDaysAgo] = useState(1095); // 3 anni fa
+  const [testEndDaysAgo, setTestEndDaysAgo] = useState(730); // 2 anni fa
 
   const loadRuns = useCallback(async () => {
     try {
@@ -74,7 +77,13 @@ export default function OosPage() {
     setError(null);
     setResult(null);
     try {
-      const r = await api.oosValidate(selectedRunId, testDays, topK, initialCash);
+      const r = await api.oosValidate(selectedRunId, {
+        testDays,
+        topK,
+        initialCash,
+        testStartDaysAgo: customMode ? testStartDaysAgo : null,
+        testEndDaysAgo: customMode ? testEndDaysAgo : null,
+      });
       setResult(r);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "OOS validation failed");
@@ -212,6 +221,84 @@ export default function OosPage() {
                 style={{ fontFamily: "var(--font-mono)" }}
               />
             </label>
+          </div>
+
+          {/* Mode toggle */}
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[--color-surface-border] pt-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={customMode}
+                onChange={(e) => setCustomMode(e.target.checked)}
+                className="accent-[--color-gold]"
+              />
+              <span
+                className="text-[10px] uppercase tracking-[0.2em] text-[--color-text-secondary]"
+                style={{ fontFamily: "var(--font-serif)" }}
+              >
+                Custom historical period (override default)
+              </span>
+            </label>
+            {customMode && (
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-1">
+                  <span
+                    className="text-[10px] uppercase tracking-[0.2em] text-[--color-text-muted]"
+                    style={{ fontFamily: "var(--font-serif)" }}
+                  >
+                    Test start (giorni fa)
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={3650}
+                    value={testStartDaysAgo}
+                    onChange={(e) => setTestStartDaysAgo(Number(e.target.value))}
+                    className="w-28 border border-[--color-surface-border] bg-[--color-surface-elevated] px-2 py-1 text-sm text-[--color-text-primary]"
+                    style={{ fontFamily: "var(--font-mono)" }}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span
+                    className="text-[10px] uppercase tracking-[0.2em] text-[--color-text-muted]"
+                    style={{ fontFamily: "var(--font-serif)" }}
+                  >
+                    Test end (giorni fa)
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={3650}
+                    value={testEndDaysAgo}
+                    onChange={(e) => setTestEndDaysAgo(Number(e.target.value))}
+                    className="w-28 border border-[--color-surface-border] bg-[--color-surface-elevated] px-2 py-1 text-sm text-[--color-text-primary]"
+                    style={{ fontFamily: "var(--font-mono)" }}
+                  />
+                </label>
+                {/* Preset buttons */}
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { label: "2022", start: 1460, end: 1095 },
+                    { label: "2023", start: 1095, end: 730 },
+                    { label: "2024", start: 730, end: 365 },
+                    { label: "2025", start: 365, end: 0 },
+                  ].map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => {
+                        setTestStartDaysAgo(p.start);
+                        setTestEndDaysAgo(p.end);
+                      }}
+                      className="border border-[--color-surface-border] px-2 py-1 text-[10px] uppercase tracking-[0.15em] text-[--color-text-muted] hover:text-[--color-gold] hover:border-[--color-gold]"
+                      style={{ fontFamily: "var(--font-serif)" }}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mt-4 flex justify-end">

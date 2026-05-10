@@ -13,6 +13,11 @@ class OosValidateRequest(BaseModel):
     test_days: int = Field(default=90, ge=7, le=730)
     top_k: int = Field(default=10, ge=1, le=50)
     initial_cash: float = Field(default=10_000.0, gt=0)
+    # Override esplicito: test su periodo arbitrario invece di
+    # "subito dopo train_end". Utile per validare GA contro multipli
+    # anni di mercato (es. train su 2021, test su 2022, 2023, 2024).
+    test_start_days_ago: int | None = Field(default=None, ge=0, le=365 * 10)
+    test_end_days_ago: int | None = Field(default=None, ge=0, le=365 * 10)
 
 
 class OosStrategyOut(BaseModel):

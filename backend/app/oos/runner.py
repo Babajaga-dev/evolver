@@ -98,6 +98,8 @@ async def validate_oos(
     initial_cash: float = 10_000.0,
     fee: float = 0.001,
     slippage_bps: float = 2.0,
+    test_start_days_ago: int | None = None,
+    test_end_days_ago: int | None = None,
 ) -> OosResult:
     """Valida un GA completato su periodo test successivo al train.
 
@@ -132,15 +134,26 @@ async def validate_oos(
         end_train = datetime.now(timezone.utc)
     start_train = end_train - timedelta(days=cfg.period_days)
 
-    start_test = end_train
-    end_test = start_test + timedelta(days=test_days)
-    # Cap a now: non possiamo testare nel futuro
     now = datetime.now(timezone.utc)
-    if end_test > now:
-        end_test = now
+    if test_start_days_ago is not None and test_end_days_ago is not None:
+        # Override esplicito: test su periodo storico arbitrario
+        start_test = now - timedelta(days=int(test_start_days_ago))
+        end_test = now - timedelta(days=int(test_end_days_ago))
+        if end_test <= start_test:
+            raise OosError(
+                f"test_end_days_ago ({test_end_days_ago}) deve essere "
+                f"< test_start_days_ago ({test_start_days_ago})"
+            )
         actual_test_days = (end_test - start_test).days
     else:
-        actual_test_days = test_days
+        # Default: subito dopo train_end (capped at now)
+        start_test = end_train
+        end_test = start_test + timedelta(days=test_days)
+        if end_test > now:
+            end_test = now
+            actual_test_days = (end_test - start_test).days
+        else:
+            actual_test_days = test_days
 
     if actual_test_days < 7:
         raise OosError(

@@ -803,15 +803,26 @@ export const api = {
 
   // ---- OOS Validation ----
 
-  oosValidate: (populationId: string, testDays = 90, topK = 10, initialCash = 10000) =>
+  oosValidate: (
+    populationId: string,
+    opts: {
+      testDays?: number;
+      topK?: number;
+      initialCash?: number;
+      testStartDaysAgo?: number | null;
+      testEndDaysAgo?: number | null;
+    } = {},
+  ) =>
     fetchJson<OosResultResponse>("/api/v1/oos/validate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         population_id: populationId,
-        test_days: testDays,
-        top_k: topK,
-        initial_cash: initialCash,
+        test_days: opts.testDays ?? 90,
+        top_k: opts.topK ?? 10,
+        initial_cash: opts.initialCash ?? 10000,
+        test_start_days_ago: opts.testStartDaysAgo,
+        test_end_days_ago: opts.testEndDaysAgo,
       }),
     }),
 

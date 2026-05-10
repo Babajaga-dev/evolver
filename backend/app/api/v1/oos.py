@@ -43,6 +43,8 @@ async def oos_validate(
             test_days=body.test_days,
             top_k=body.top_k,
             initial_cash=body.initial_cash,
+            test_start_days_ago=body.test_start_days_ago,
+            test_end_days_ago=body.test_end_days_ago,
         )
     except OosError as exc:
         raise HTTPException(
