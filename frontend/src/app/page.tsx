@@ -15,7 +15,7 @@ export default function Home() {
         </h1>
         <p className="mb-8 max-w-prose text-lg leading-relaxed text-[--color-text-secondary]">
           Sistema di trading crypto evolutivo. Algoritmi genetici, indicatori
-          tecnici, news sentiment e LLM convergono in una popolazione di
+          tecnici e regime detection convergono in una popolazione di
           strategie che evolvono per sopravvivere al mercato.
         </p>
 
@@ -41,9 +41,6 @@ export default function Home() {
           </a>
           <a className="hover:text-[--color-gold]" href="/population">
             ◆ Population
-          </a>
-          <a className="hover:text-[--color-gold]" href="/news">
-            ◆ News
           </a>
           <a className="hover:text-[--color-gold]" href="/paper">
             ◆ Paper

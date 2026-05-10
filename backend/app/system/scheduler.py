@@ -163,58 +163,6 @@ def _now_ts() -> float:
 # ---------------------------------------------------------------------------
 
 
-async def _job_news_auto_refresh() -> None:
-    job_id = "news.auto_refresh"
-    started = _now_ts()
-    try:
-        async with session_scope() as session:
-            cfg = await settings_repo.get_value(session, job_id)
-            if not cfg.get("enabled"):
-                _record(job_id, "skipped", "disabled", _now_ts() - started)
-                return
-
-            from app.news import fetch_and_ingest
-
-            result = await fetch_and_ingest(session)
-            _record(
-                job_id,
-                "ok",
-                f"fetched={result['fetched']} inserted={result['inserted']}",
-                _now_ts() - started,
-            )
-            log.info("system.scheduler.news_refresh.done", **result)
-    except Exception as exc:
-        _record(job_id, "error", str(exc), _now_ts() - started)
-        log.exception("system.scheduler.news_refresh.failed", error=str(exc))
-
-
-async def _job_news_auto_score() -> None:
-    job_id = "news.auto_score"
-    started = _now_ts()
-    try:
-        async with session_scope() as session:
-            cfg = await settings_repo.get_value(session, job_id)
-            if not cfg.get("enabled"):
-                _record(job_id, "skipped", "disabled", _now_ts() - started)
-                return
-
-            from app.news import score_pending_news
-
-            result = await score_pending_news(
-                session,
-                limit=int(cfg.get("batch_limit", 20)),
-                concurrency=int(cfg.get("concurrency", 4)),
-            )
-            _record(
-                job_id,
-                "ok",
-                f"picked={result['picked']} scored={result['scored']} failed={result['failed']}",
-                _now_ts() - started,
-            )
-            log.info("system.scheduler.news_score.done", **result)
-    except Exception as exc:
-        _record(job_id, "error", str(exc), _now_ts() - started)
-        log.exception("system.scheduler.news_score.failed", error=str(exc))
 
 
 async def _job_ohlcv_auto_backfill() -> None:
@@ -306,8 +254,6 @@ async def _job_paper_engine_tick() -> None:
 
 
 JOB_FUNCS: dict[str, Any] = {
-    "news.auto_refresh": _job_news_auto_refresh,
-    "news.auto_score": _job_news_auto_score,
     "ohlcv.auto_backfill": _job_ohlcv_auto_backfill,
     "paper.engine_tick": _job_paper_engine_tick,
 }

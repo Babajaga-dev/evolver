@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import get_logger
 from app.ga import state as ga_state
 from app.models.market import OHLCV
-from app.models.news import NewsRaw, NewsScored
 from app.models.strategy import (
     FitnessEvaluation,
     Generation,
@@ -29,8 +28,6 @@ log = get_logger(__name__)
 
 CleanupTarget = Literal[
     "ohlcv_old",
-    "news_raw_old",
-    "news_scored_all",
     "ga_runs_failed",
     "ga_runs_completed",
     "ga_runs_all",
@@ -53,8 +50,6 @@ async def collect_stats(session: AsyncSession) -> dict[str, Any]:
         return int(q.scalar_one())
 
     ohlcv_count = await _count(OHLCV)
-    news_raw_count = await _count(NewsRaw)
-    news_scored_count = await _count(NewsScored)
     populations_count = await _count(Population)
     generations_count = await _count(Generation)
     strategies_count = await _count(Strategy)
@@ -78,11 +73,7 @@ async def collect_stats(session: AsyncSession) -> dict[str, Any]:
             "oldest": ohlcv_oldest.isoformat() if ohlcv_oldest else None,
             "newest": ohlcv_newest.isoformat() if ohlcv_newest else None,
         },
-        "news": {
-            "raw": news_raw_count,
-            "scored": news_scored_count,
-            "pending": max(0, news_raw_count - news_scored_count),
-        },
+        "news": {"raw": 0, "scored": 0, "pending": 0},
         "ga_postgres": {
             "populations": populations_count,
             "generations": generations_count,
@@ -113,7 +104,7 @@ async def cleanup(
     Args:
         session: AsyncSession (caller gestisce commit).
         target: cosa pulire (vedi ``CleanupTarget``).
-        older_than_days: soglia per cleanup time-based (ohlcv_old, news_raw_old).
+        older_than_days: soglia per cleanup time-based (ohlcv_old).
                          Se None, default sicuri (365d ohlcv, 30d news).
         confirm: deve essere ``True`` per eseguire la delete. Senza, dry-run
                  che ritorna solo la count di righe candidate.
@@ -125,12 +116,6 @@ async def cleanup(
         return await _cleanup_ohlcv_old(
             session, older_than_days or 365, confirm=confirm
         )
-    if target == "news_raw_old":
-        return await _cleanup_news_raw_old(
-            session, older_than_days or 30, confirm=confirm
-        )
-    if target == "news_scored_all":
-        return await _cleanup_news_scored_all(session, confirm=confirm)
     if target == "ga_runs_failed":
         return await _cleanup_ga_runs(session, status_filter="failed", confirm=confirm)
     if target == "ga_runs_completed":
@@ -179,70 +164,6 @@ async def _cleanup_ohlcv_old(
     }
 
 
-async def _cleanup_news_raw_old(
-    session: AsyncSession,
-    older_than_days: int,
-    *,
-    confirm: bool,
-) -> dict[str, Any]:
-    cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
-    count_q = await session.execute(
-        select(func.count())
-        .select_from(NewsRaw)
-        .where(NewsRaw.published_at < cutoff)
-    )
-    n_candidates = int(count_q.scalar_one())
-
-    if not confirm:
-        return {
-            "target": "news_raw_old",
-            "deleted": 0,
-            "dry_run": True,
-            "details": {"candidates": n_candidates, "cutoff": cutoff.isoformat()},
-        }
-
-    # Cascade su news_scored (FK ondelete CASCADE)
-    result = await session.execute(
-        delete(NewsRaw).where(NewsRaw.published_at < cutoff)
-    )
-    deleted = result.rowcount or 0
-    log.warning(
-        "system.cleanup.news_raw_old", deleted=deleted, cutoff=cutoff.isoformat()
-    )
-    return {
-        "target": "news_raw_old",
-        "deleted": deleted,
-        "dry_run": False,
-        "details": {"cutoff": cutoff.isoformat()},
-    }
-
-
-async def _cleanup_news_scored_all(
-    session: AsyncSession,
-    *,
-    confirm: bool,
-) -> dict[str, Any]:
-    """Cancella tutti gli scoring — utile per ri-scorare con un nuovo prompt."""
-    count_q = await session.execute(select(func.count()).select_from(NewsScored))
-    n_candidates = int(count_q.scalar_one())
-
-    if not confirm:
-        return {
-            "target": "news_scored_all",
-            "deleted": 0,
-            "dry_run": True,
-            "details": {"candidates": n_candidates},
-        }
-
-    result = await session.execute(delete(NewsScored))
-    deleted = result.rowcount or 0
-    log.warning("system.cleanup.news_scored_all", deleted=deleted)
-    return {
-        "target": "news_scored_all",
-        "deleted": deleted,
-        "dry_run": False,
-        "details": {},
-    }
 
 
 async def _cleanup_ga_runs(

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { PostmortemPanel } from "@/components/PostmortemPanel";
 import {
   ApiError,
   api,
@@ -22,20 +21,6 @@ interface CleanupSpec {
 }
 
 const CLEANUP_SPECS: CleanupSpec[] = [
-  {
-    target: "news_scored_all",
-    label: "Re-score news",
-    description: "Cancella tutti gli scoring LLM. Le news raw restano, vanno ri-scorate.",
-    supportsAge: false,
-    destructive: true,
-  },
-  {
-    target: "news_raw_old",
-    label: "Purge news vecchie",
-    description: "Elimina news più vecchie di N giorni (cascade su scored).",
-    supportsAge: true,
-    destructive: true,
-  },
   {
     target: "ohlcv_old",
     label: "Purge OHLCV vecchie",
@@ -257,9 +242,6 @@ export default function ControlPage() {
           <JobsTable jobs={jobs} />
         </section>
 
-        {/* Section 4 — Postmortem Opus weekly */}
-        <PostmortemPanel />
-
         <footer
           className="mt-12 border-t border-[--color-surface-border] pt-4 text-xs text-[--color-text-muted]"
           style={{ fontFamily: "var(--font-mono)" }}
@@ -464,9 +446,6 @@ function DatabaseStats({ stats }: { stats: MaintenanceStats | null }) {
   }
   const cards = [
     { label: "OHLCV candles", value: stats.ohlcv.count },
-    { label: "News raw", value: stats.news.raw },
-    { label: "News scored", value: stats.news.scored },
-    { label: "News pending", value: stats.news.pending },
     { label: "GA Postgres pop.", value: stats.ga_postgres.populations },
     { label: "GA Postgres strat.", value: stats.ga_postgres.strategies },
     { label: "GA Redis runs", value: stats.ga_redis.total },

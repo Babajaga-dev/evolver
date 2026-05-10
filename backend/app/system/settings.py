@@ -41,30 +41,6 @@ class SettingDefinition:
 
 DEFAULT_SETTINGS: list[SettingDefinition] = [
     SettingDefinition(
-        key="news.auto_refresh",
-        default_value={"enabled": False, "interval_seconds": 300},
-        description="Fetch automatico dei feed RSS ogni N secondi",
-        category="automation",
-        schema={"enabled": "bool", "interval_seconds": "int"},
-    ),
-    SettingDefinition(
-        key="news.auto_score",
-        default_value={
-            "enabled": False,
-            "interval_seconds": 600,
-            "batch_limit": 20,
-            "concurrency": 4,
-        },
-        description="Scoring automatico via Claude Haiku delle news pending",
-        category="automation",
-        schema={
-            "enabled": "bool",
-            "interval_seconds": "int",
-            "batch_limit": "int",
-            "concurrency": "int",
-        },
-    ),
-    SettingDefinition(
         key="ohlcv.auto_backfill",
         default_value={"enabled": False, "interval_seconds": 3600},
         description="Backfill automatico delle candele Binance",

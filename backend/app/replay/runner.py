@@ -473,9 +473,11 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
         dd = ((equity_series / peak) - 1.0).min()
         total_return = (equity_series[-1] / equity_series[0]) - 1.0
 
-        # Baseline buy & hold
+        # Baseline 1 — Buy & Hold
         async with session_scope() as s:
             df_full = await _fetch_ohlcv_window(s, cfg.symbol, "4h", cfg.start_date, cfg.end_date)
+            df_1h_full = await _fetch_ohlcv_window(s, cfg.symbol, "1h", cfg.start_date, cfg.end_date)
+            df_1d_full = await _fetch_ohlcv_window(s, cfg.symbol, "1d", cfg.start_date - timedelta(days=40), cfg.end_date)
         if not df_full.empty:
             bh_ret = (df_full["close"].iloc[-1] / df_full["close"].iloc[0]) - 1.0
             bh_equity = df_full["close"] / df_full["close"].iloc[0] * cfg.initial_cash
@@ -488,6 +490,75 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
             bh_dd = 0.0
             bh_sharpe = 0.0
 
+        # Baseline 2 — Textbook Council (params default, niente GA, regime detector standard)
+        textbook_metrics = {"sharpe": 0.0, "total_return": 0.0, "max_drawdown": 0.0, "final_equity": cfg.initial_cash}
+        if not df_full.empty and len(df_full) > 50:
+            try:
+                from app.replay.runner_backtest import backtest_council_static
+                from app.replay.council import default_council_params
+                if df_1d_full is None or df_1d_full.empty:
+                    regime_full = pd.Series("range", index=df_full.index)
+                else:
+                    regime_full = _detect_regime_series_local(df_1d_full)
+                if df_1h_full is None or df_1h_full.empty:
+                    df_1h_full = df_full
+                tb_council = default_council_params()
+                tb_r = backtest_council_static(
+                    candles_by_tf={"1h": df_1h_full, "4h": df_full, "1d": df_1d_full},
+                    regime_series=regime_full,
+                    council=tb_council,
+                    initial_cash=cfg.initial_cash,
+                    fee=cfg.fee,
+                    slippage_bps=cfg.slippage_bps,
+                )
+                textbook_metrics = {
+                    "sharpe": float(tb_r.get("sharpe", 0.0)),
+                    "total_return": float(tb_r.get("total_return", 0.0)),
+                    "max_drawdown": float(tb_r.get("max_drawdown", 0.0)),
+                    "final_equity": float(tb_r.get("final_equity", cfg.initial_cash)),
+                    "n_trades": int(tb_r.get("n_trades", 0)),
+                }
+            except Exception as exc:
+                log.warning("replay.baseline_textbook_failed", error=str(exc))
+
+        # Baseline 3 — GA-one-shot: usa SOLO il primo organismo, niente re-evoluzione
+        gaoneshot_metrics = {"sharpe": 0.0, "total_return": 0.0, "max_drawdown": 0.0, "final_equity": cfg.initial_cash}
+        if not df_full.empty and len(df_full) > 50:
+            try:
+                async with session_scope() as s:
+                    first_events = await replay_repo.get_retrain_events(s, run_id)
+                if first_events:
+                    from app.replay import genome as gn
+                    first_chrom = first_events[0].organism.get("chromosome", {}) if isinstance(first_events[0].organism, dict) else {}
+                    if first_chrom:
+                        os_council = gn.decode_to_council(first_chrom)
+                        if df_1d_full is None or df_1d_full.empty:
+                            regime_full2 = pd.Series("range", index=df_full.index)
+                        else:
+                            regime_full2 = _detect_regime_series_local(df_1d_full)
+                        os_r = backtest_council_static(
+                            candles_by_tf={"1h": df_1h_full if df_1h_full is not None and not df_1h_full.empty else df_full, "4h": df_full, "1d": df_1d_full},
+                            regime_series=regime_full2,
+                            council=os_council,
+                            initial_cash=cfg.initial_cash,
+                            fee=cfg.fee,
+                            slippage_bps=cfg.slippage_bps,
+                        )
+                        gaoneshot_metrics = {
+                            "sharpe": float(os_r.get("sharpe", 0.0)),
+                            "total_return": float(os_r.get("total_return", 0.0)),
+                            "max_drawdown": float(os_r.get("max_drawdown", 0.0)),
+                            "final_equity": float(os_r.get("final_equity", cfg.initial_cash)),
+                            "n_trades": int(os_r.get("n_trades", 0)),
+                        }
+            except Exception as exc:
+                log.warning("replay.baseline_gaoneshot_failed", error=str(exc))
+
+        # Alpha vs baselines
+        alpha_bh = float(sharpe - bh_sharpe)
+        alpha_textbook = float(sharpe - textbook_metrics["sharpe"])
+        alpha_gaoneshot = float(sharpe - gaoneshot_metrics["sharpe"])
+
         final_metrics = {
             "sharpe": float(sharpe),
             "total_return": float(total_return),
@@ -499,8 +570,13 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
                     "sharpe": float(bh_sharpe),
                     "total_return": float(bh_ret),
                     "max_drawdown": float(bh_dd),
-                }
-            }
+                },
+                "textbook_council": textbook_metrics,
+                "ga_one_shot": gaoneshot_metrics,
+            },
+            "alpha_vs_buy_hold": alpha_bh,
+            "alpha_vs_textbook": alpha_textbook,
+            "alpha_vs_ga_one_shot": alpha_gaoneshot,
         }
         async with session_scope() as s:
             await replay_repo.set_final_metrics(s, run_id, final_metrics=final_metrics)

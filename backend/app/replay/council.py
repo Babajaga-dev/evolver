@@ -148,12 +148,18 @@ def compute_signals_hierarchical(
     council: CouncilParams,
     regime_by_t: pd.Series,
 ) -> tuple[pd.Series, pd.Series, pd.Series]:
-    """Calcola entries/exits dal Council su candele 4h (TF primario).
+    """Calcola entries/exits con architettura GERARCHICA multi-TF.
+
+    Architettura:
+        1d (regime) → GATE  : trend_bearish/transition forzano FLAT (no trade)
+        4h          → SIGNAL: aggregato pesato dei 4 indicatori, regime-aware
+        1h          → TRIGGER (opzionale): conferma cross dei segnali 4h prima
+                              di entrare. Pulisce noise su falsi breakout.
 
     Args:
         candles_by_tf: {"1h": df_1h, "4h": df_4h, "1d": df_1d}
         council: parametri correnti
-        regime_by_t: regime label per ogni timestamp di df_4h
+        regime_by_t: regime label calcolato su 1d, reindicizzato a 4h
 
     Returns:
         (entries, exits, position_size) su indice di df_4h
@@ -164,30 +170,27 @@ def compute_signals_hierarchical(
         z = pd.Series(False, index=df_primary.index)
         return z, z, pd.Series(0.0, index=df_primary.index)
 
-    # Per ogni voter, computa vote su SUO timeframe poi forward-fill su 4h
-    votes_aligned: dict[str, dict[str, pd.Series]] = {ind: {} for ind in INDICATORS}
-    for ind in INDICATORS:
-        for tf in TIMEFRAMES:
-            df_tf = candles_by_tf.get(tf)
-            if df_tf is None or len(df_tf) < 30:
-                continue
-            params = council.get_voter(ind, tf)
-            vote_tf = VOTER_FNS[ind](df_tf, params)
-            # Reindex su df_primary index con forward fill
-            vote_aligned = vote_tf.reindex(df_primary.index, method="ffill").fillna(0.0)
-            votes_aligned[ind][tf] = vote_aligned
-
-    # Aggrega per indicatore (media sui timeframe disponibili)
-    indicator_score: dict[str, pd.Series] = {}
-    for ind in INDICATORS:
-        if votes_aligned[ind]:
-            stacked = pd.concat(votes_aligned[ind].values(), axis=1)
-            indicator_score[ind] = stacked.mean(axis=1)
-        else:
-            indicator_score[ind] = pd.Series(0.0, index=df_primary.index)
-
-    # Score finale: somma pesata per regime
+    # ------------------------------------------------------------------
+    # STEP 1 — 1d GATE: blocca trading in trend_bearish/transition
+    # ------------------------------------------------------------------
     regime_aligned = regime_by_t.reindex(df_primary.index, method="ffill").fillna("range")
+    # Gate: True se il regime permette di tradare long
+    gate_ok = ~regime_aligned.isin(["trend_bearish", "transition"])
+
+    # ------------------------------------------------------------------
+    # STEP 2 — 4h SIGNAL: aggregato pesato dei voter sui 4h
+    # ------------------------------------------------------------------
+    df_4h = candles_by_tf["4h"]
+    indicator_score_4h: dict[str, pd.Series] = {}
+    for ind in INDICATORS:
+        params = council.get_voter(ind, "4h")
+        try:
+            vote_4h = VOTER_FNS[ind](df_4h, params)
+        except Exception:
+            vote_4h = pd.Series(0.0, index=df_4h.index)
+        indicator_score_4h[ind] = vote_4h.reindex(df_primary.index).fillna(0.0)
+
+    # Score finale 4h: somma pesata regime-aware
     final_score = pd.Series(0.0, index=df_primary.index)
     for ind in INDICATORS:
         for regime in REGIMES:
@@ -195,11 +198,38 @@ def compute_signals_hierarchical(
             if not mask.any():
                 continue
             weight = council.get_weight(regime, ind)
-            final_score.loc[mask] += indicator_score[ind].loc[mask] * weight
+            final_score.loc[mask] += indicator_score_4h[ind].loc[mask] * weight
 
-    # Decisione long-only:
-    entries = final_score > 0.3
-    exits = final_score < 0.0
-    # Position size scaling
+    # ------------------------------------------------------------------
+    # STEP 3 — 1h TRIGGER: conferma direzionale (entries solo se 1h concorde)
+    # ------------------------------------------------------------------
+    df_1h = candles_by_tf.get("1h")
+    trigger_confirm = pd.Series(True, index=df_primary.index)  # default: tutti pass
+    if df_1h is not None and len(df_1h) >= 30:
+        # Media dei voter sul 1h aggregata regime-aware (semplificata: media indicatori)
+        votes_1h: list[pd.Series] = []
+        for ind in INDICATORS:
+            params = council.get_voter(ind, "1h")
+            try:
+                v = VOTER_FNS[ind](df_1h, params)
+                votes_1h.append(v)
+            except Exception:
+                continue
+        if votes_1h:
+            mean_1h = pd.concat(votes_1h, axis=1).mean(axis=1)
+            # Forward fill su index 4h
+            mean_1h_aligned = mean_1h.reindex(df_primary.index, method="ffill").fillna(0.0)
+            # Trigger: 1h non deve essere BEARISH quando il 4h dice LONG
+            trigger_confirm = mean_1h_aligned >= 0.0
+
+    # ------------------------------------------------------------------
+    # Decisione finale: gate AND signal AND trigger
+    # ------------------------------------------------------------------
+    raw_long = (final_score > 0.3) & gate_ok & trigger_confirm
+    raw_exit = (final_score < 0.0) | (~gate_ok)  # exit se signal negativo o regime ostile
+
     pos = (final_score.clip(0, 1.0) * council.position_size_pct).fillna(0.0)
-    return entries.fillna(False), exits.fillna(False), pos
+    # Force pos=0 quando gate è chiuso
+    pos = pos.where(gate_ok, 0.0)
+
+    return raw_long.fillna(False), raw_exit.fillna(False), pos

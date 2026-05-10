@@ -606,6 +606,11 @@ function SummaryCard({ summary }: { summary: ReplayRunSummary }) {
   const dd = typeof fm["max_drawdown"] === "number" ? (fm["max_drawdown"] as number) : null;
   const baselines = fm["baselines"] as Record<string, Record<string, number>> | undefined;
   const bh = baselines?.buy_hold;
+  const tb = baselines?.textbook_council;
+  const gos = baselines?.ga_one_shot;
+  const alphaBH = typeof fm["alpha_vs_buy_hold"] === "number" ? (fm["alpha_vs_buy_hold"] as number) : null;
+  const alphaTB = typeof fm["alpha_vs_textbook"] === "number" ? (fm["alpha_vs_textbook"] as number) : null;
+  const alphaGOS = typeof fm["alpha_vs_ga_one_shot"] === "number" ? (fm["alpha_vs_ga_one_shot"] as number) : null;
   return (
     <section
       className="border bg-[--color-surface-card] p-4"
@@ -661,6 +666,7 @@ function SummaryCard({ summary }: { summary: ReplayRunSummary }) {
         </div>
       </div>
       {(sharpe !== null || totalReturn !== null) && (
+        <>
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           <Metric label="Sharpe" value={sharpe?.toFixed(2) ?? "—"} />
           <Metric
@@ -674,16 +680,133 @@ function SummaryCard({ summary }: { summary: ReplayRunSummary }) {
           />
           <Metric label="Max DD" value={dd !== null ? `${(dd * 100).toFixed(2)}%` : "—"} color="var(--color-crimson)" />
           <Metric
-            label="vs Buy&Hold"
-            value={
-              bh && typeof bh.total_return === "number"
-                ? `${bh.total_return >= 0 ? "+" : ""}${(bh.total_return * 100).toFixed(2)}%`
-                : "—"
-            }
+            label="Final equity"
+            value={typeof fm["final_equity"] === "number" ? `$${(fm["final_equity"] as number).toFixed(0)}` : "—"}
           />
         </div>
+
+        {/* Baselines comparison */}
+        {(bh || tb || gos) && (
+          <div className="mt-6">
+            <p
+              className="mb-2 text-[10px] uppercase tracking-[0.25em] text-[--color-gold]"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              · BASELINES · ALPHA RATE ·
+            </p>
+            <div className="overflow-x-auto border" style={{ borderColor: "var(--color-gold)", borderStyle: "dashed" }}>
+              <table className="w-full text-xs" style={{ fontFamily: "var(--font-mono)" }}>
+                <thead>
+                  <tr
+                    className="border-b border-[--color-surface-border] text-[10px] uppercase tracking-[0.2em] text-[--color-gold]"
+                    style={{ fontFamily: "var(--font-serif)" }}
+                  >
+                    <th className="px-3 py-2 text-left">Strategy</th>
+                    <th className="px-3 py-2 text-right">Sharpe</th>
+                    <th className="px-3 py-2 text-right">Return</th>
+                    <th className="px-3 py-2 text-right">Max DD</th>
+                    <th className="px-3 py-2 text-right">Alpha vs replay</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <BaselineRow label="REPLAY (adaptive Council)" sharpe={sharpe} ret={totalReturn} dd={dd} alpha={0} isPrimary />
+                  {bh && (
+                    <BaselineRow
+                      label="Buy & Hold"
+                      sharpe={typeof bh.sharpe === "number" ? bh.sharpe : null}
+                      ret={typeof bh.total_return === "number" ? bh.total_return : null}
+                      dd={typeof bh.max_drawdown === "number" ? bh.max_drawdown : null}
+                      alpha={alphaBH}
+                    />
+                  )}
+                  {tb && (
+                    <BaselineRow
+                      label="Textbook Council (no GA)"
+                      sharpe={typeof tb.sharpe === "number" ? tb.sharpe : null}
+                      ret={typeof tb.total_return === "number" ? tb.total_return : null}
+                      dd={typeof tb.max_drawdown === "number" ? tb.max_drawdown : null}
+                      alpha={alphaTB}
+                    />
+                  )}
+                  {gos && (
+                    <BaselineRow
+                      label="GA-one-shot (no re-evolve)"
+                      sharpe={typeof gos.sharpe === "number" ? gos.sharpe : null}
+                      ret={typeof gos.total_return === "number" ? gos.total_return : null}
+                      dd={typeof gos.max_drawdown === "number" ? gos.max_drawdown : null}
+                      alpha={alphaGOS}
+                    />
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p
+              className="mt-2 text-[10px] text-[--color-text-muted]"
+              style={{ fontFamily: "var(--font-body)" }}
+            >
+              Alpha = Sharpe replay − Sharpe baseline. Positivo = il sistema adattivo aggiunge valore. Negativo = stesso risultato del baseline o peggio.
+            </p>
+          </div>
+        )}
+        </>
       )}
     </section>
+  );
+}
+
+function BaselineRow({
+  label,
+  sharpe,
+  ret,
+  dd,
+  alpha,
+  isPrimary = false,
+}: {
+  label: string;
+  sharpe: number | null;
+  ret: number | null;
+  dd: number | null;
+  alpha: number | null;
+  isPrimary?: boolean;
+}) {
+  return (
+    <tr
+      className="border-b border-[--color-surface-border]/40"
+      style={isPrimary ? { background: "var(--color-surface-elevated)" } : {}}
+    >
+      <td
+        className="px-3 py-2 text-[--color-text-primary]"
+        style={isPrimary ? { color: "var(--color-gold)", fontWeight: 700 } : {}}
+      >
+        {label}
+      </td>
+      <td
+        className="px-3 py-2 text-right"
+        style={{
+          color: sharpe === null ? "var(--color-text-muted)" : sharpe >= 0 ? "var(--color-text-primary)" : "var(--color-crimson)",
+        }}
+      >
+        {sharpe !== null ? sharpe.toFixed(2) : "—"}
+      </td>
+      <td
+        className="px-3 py-2 text-right"
+        style={{ color: ret !== null && ret >= 0 ? "#00ff99" : "var(--color-crimson)" }}
+      >
+        {ret !== null ? `${ret >= 0 ? "+" : ""}${(ret * 100).toFixed(2)}%` : "—"}
+      </td>
+      <td className="px-3 py-2 text-right text-[--color-text-secondary]">
+        {dd !== null ? `${(dd * 100).toFixed(2)}%` : "—"}
+      </td>
+      <td
+        className="px-3 py-2 text-right"
+        style={{
+          color: alpha === null ? "var(--color-text-muted)" : alpha > 0 ? "#00ff99" : alpha < 0 ? "var(--color-crimson)" : "var(--color-text-secondary)",
+          fontWeight: isPrimary ? 400 : 700,
+        }}
+      >
+        {isPrimary ? "—" : alpha !== null ? `${alpha >= 0 ? "+" : ""}${alpha.toFixed(2)}` : "—"}
+      </td>
+    </tr>
   );
 }
 

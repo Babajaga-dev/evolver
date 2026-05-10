@@ -324,58 +324,6 @@ export interface GaRunsListResponse {
 }
 
 // ---------------------------------------------------------------------------
-// News
-// ---------------------------------------------------------------------------
-
-export interface NewsScore {
-  assets_mentioned: string[];
-  event_type: string;
-  factual_impact: number;
-  sentiment_score: number;
-  confidence: number;
-  ttl_hours: number;
-  reasoning: string | null;
-  model: string;
-  scored_at: string;
-}
-
-export interface NewsItem {
-  id: string;
-  source: string;
-  url: string;
-  title: string;
-  body: string | null;
-  published_at: string;
-  ingested_at: string;
-  score: NewsScore | null;
-}
-
-export interface NewsListResponse {
-  items: NewsItem[];
-  count: number;
-}
-
-export interface NewsStats {
-  total_raw: number;
-  total_scored: number;
-  scored_last_24h: number;
-  avg_sentiment_24h: number;
-  by_event_type_24h: Record<string, number>;
-}
-
-export interface AssetSentiment {
-  asset: string;
-  hours: number;
-  n_news: number;
-  avg_sentiment: number;
-  avg_factual_impact: number;
-  avg_confidence: number;
-  weighted_signal: number;
-  by_event_type: Record<string, number>;
-  freshest_at: string | null;
-}
-
-// ---------------------------------------------------------------------------
 // Paper trading
 // ---------------------------------------------------------------------------
 
@@ -435,18 +383,6 @@ export interface EquityCurveResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Postmortem (Claude Opus weekly review)
-// ---------------------------------------------------------------------------
-
-export interface PostmortemResponse {
-  period_start: string;
-  period_end: string;
-  markdown: string;
-  model: string;
-  tokens_input: number;
-  tokens_output: number;
-  cost_usd_estimate: number;
-}
 
 // ---------------------------------------------------------------------------
 // Regime detector
@@ -530,17 +466,6 @@ export interface OosResultResponse {
   n_alpha_positive: number;
 }
 
-export interface NewsRefreshResponse {
-  fetched: number;
-  inserted: number;
-}
-
-export interface NewsScoreBatchResponse {
-  picked: number;
-  scored: number;
-  failed: number;
-}
-
 // ---------------------------------------------------------------------------
 // System (control panel)
 // ---------------------------------------------------------------------------
@@ -579,11 +504,6 @@ export interface MaintenanceStats {
     oldest: string | null;
     newest: string | null;
   };
-  news: {
-    raw: number;
-    scored: number;
-    pending: number;
-  };
   ga_postgres: {
     populations: number;
     generations: number;
@@ -598,8 +518,6 @@ export interface MaintenanceStats {
 
 export type CleanupTarget =
   | "ohlcv_old"
-  | "news_raw_old"
-  | "news_scored_all"
   | "ga_runs_failed"
   | "ga_runs_completed"
   | "ga_runs_all";
@@ -814,32 +732,6 @@ export const api = {
     );
   },
 
-  // ---- News ----
-
-  listNews: (
-    opts: {
-      limit?: number;
-      asset?: string;
-      eventType?: string;
-      onlyScored?: boolean;
-    } = {},
-  ) => {
-    const params = new URLSearchParams();
-    if (opts.limit) params.set("limit", String(opts.limit));
-    if (opts.asset) params.set("asset", opts.asset);
-    if (opts.eventType) params.set("event_type", opts.eventType);
-    if (opts.onlyScored !== undefined)
-      params.set("only_scored", String(opts.onlyScored));
-    const qs = params.toString();
-    return fetchJson<NewsListResponse>(`/api/v1/news${qs ? `?${qs}` : ""}`);
-  },
-
-  newsStats: () => fetchJson<NewsStats>("/api/v1/news/stats"),
-
-  assetSentiment: (asset: string, hours = 24) =>
-    fetchJson<AssetSentiment>(
-      `/api/v1/news/sentiment/${encodeURIComponent(asset)}?hours=${hours}`,
-    ),
 
   // ---- Paper trading ----
 
@@ -866,14 +758,6 @@ export const api = {
       { method: "POST" },
     ),
 
-  // ---- Postmortem ----
-
-  postmortemGenerate: (days = 7) =>
-    fetchJson<PostmortemResponse>("/api/v1/postmortem/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ days }),
-    }),
 
   // ---- Regime detector ----
 
@@ -906,15 +790,6 @@ export const api = {
         test_end_days_ago: opts.testEndDaysAgo,
       }),
     }),
-
-  refreshNews: () =>
-    fetchJson<NewsRefreshResponse>("/api/v1/news/refresh", { method: "POST" }),
-
-  scoreNewsBatch: (limit = 20, concurrency = 4) =>
-    fetchJson<NewsScoreBatchResponse>(
-      `/api/v1/news/score?limit=${limit}&concurrency=${concurrency}`,
-      { method: "POST" },
-    ),
 
   // ---- System / control panel ----
 

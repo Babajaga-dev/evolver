@@ -103,7 +103,7 @@ class CleanupRequest(BaseModel):
 
     target: str = Field(
         description=(
-            "Cosa pulire: ohlcv_old | news_raw_old | news_scored_all | "
+            "Cosa pulire: ohlcv_old | "
             "ga_runs_failed | ga_runs_completed | ga_runs_all"
         )
     )
