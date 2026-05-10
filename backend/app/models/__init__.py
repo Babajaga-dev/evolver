@@ -14,6 +14,7 @@ from app.models.strategy import (
     Population,
     Strategy,
 )
+from app.models.replay import ReplayEquitySnapshot, ReplayRetrainEvent, ReplayRun
 from app.models.system import SystemSetting
 
 __all__ = [
@@ -26,6 +27,9 @@ __all__ = [
     "OHLCV",
     "PaperTrade",
     "Population",
+    "ReplayEquitySnapshot",
+    "ReplayRetrainEvent",
+    "ReplayRun",
     "Strategy",
     "SystemSetting",
 ]

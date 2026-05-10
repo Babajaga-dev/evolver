@@ -98,6 +98,25 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:  # pragma: no cover
         log.warning("system.startup.failed", error=str(exc))
 
+    # Resume replay runs interrotti (status='running' o 'pending')
+    try:
+        import asyncio as _aio
+        from app.replay import repo as _replay_repo
+        from app.replay.runner import run_replay_task
+
+        async with session_scope() as _s:
+            from sqlalchemy import select
+            from app.models.replay import ReplayRun
+            res = await _s.execute(
+                select(ReplayRun).where(ReplayRun.status.in_(("pending", "running")))
+            )
+            to_resume = list(res.scalars().all())
+        for r in to_resume:
+            log.info("replay.resume_on_startup", run_id=str(r.id), status=r.status)
+            _aio.create_task(run_replay_task(r.id))
+    except Exception as exc:
+        log.warning("replay.startup_resume.failed", error=str(exc))
+
     yield
 
     log.info("shutdown")
