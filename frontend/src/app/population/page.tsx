@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DiversityChart } from "@/components/DiversityChart";
 import { EvolutionLog } from "@/components/EvolutionLog";
-import { SentimentBadge } from "@/components/SentimentBadge";
 import { FitnessLandscape } from "@/components/FitnessLandscape";
 import { ParameterHistograms } from "@/components/ParameterHistograms";
 import { ParetoFront } from "@/components/ParetoFront";
@@ -192,7 +191,6 @@ export default function PopulationPage() {
           >
             News regime 24h:
           </span>
-          <SentimentBadge asset={symbol.split("/")[0]} hours={24} compact />
         </div>
 
         {/* Form */}
