@@ -645,6 +645,74 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
 // Endpoints
 // ---------------------------------------------------------------------------
 
+
+// ---------------------------------------------------------------------------
+// Replay engine (Phase 6 — The Living Organism)
+// ---------------------------------------------------------------------------
+
+export interface ReplayRunSummary {
+  id: string;
+  name: string;
+  status: string;
+  symbol: string;
+  current_simulated_date: string | null;
+  current_equity: number;
+  progress_pct: number;
+  n_retrains: number;
+  n_kill_switch_events: number;
+  started_at: string | null;
+  completed_at: string | null;
+  error: string | null;
+  created_at: string;
+  final_metrics: Record<string, unknown> | null;
+  config: Record<string, unknown>;
+}
+
+export interface ReplayEquityPoint {
+  t: string;
+  equity: number;
+  position_size_pct: number;
+  drawdown_pct: number;
+  regime: string | null;
+  n_trades_so_far: number;
+}
+
+export interface ReplayRetrainEvent {
+  t: string;
+  trigger: string;
+  organism: Record<string, unknown>;
+  elapsed_seconds: number;
+  equity_at_retrain: number;
+}
+
+export interface ReplayDetailResponse {
+  summary: ReplayRunSummary;
+  equity_curve: ReplayEquityPoint[];
+  retrain_events: ReplayRetrainEvent[];
+}
+
+export interface ReplayStartParams {
+  name?: string;
+  symbol?: string;
+  start_date: string; // ISO
+  end_date: string;   // ISO
+  initial_cash?: number;
+  retrain_cadence_days?: number;
+  lookback_days?: number;
+  kill_switch_dd_pct?: number;
+  kill_switch_window_days?: number;
+  ga_pop_size?: number;
+  ga_generations?: number;
+}
+
+export interface AdminBackfillRequest {
+  symbols?: string[];
+  timeframes?: string[];
+  start_date: string;
+  end_date?: string;
+}
+
+
 export const api = {
   health: () => fetchJson<HealthResponse>("/health"),
 
@@ -887,6 +955,43 @@ export const api = {
         confirm: opts.confirm ?? false,
       }),
     }),
+
+  // Replay
+  replayList: () =>
+    fetchJson<{ runs: ReplayRunSummary[] }>("/api/v1/replay/runs"),
+  replayStart: (params: ReplayStartParams) =>
+    fetchJson<ReplayRunSummary>("/api/v1/replay/runs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    }),
+  replayDetail: (id: string, snapshotLimit = 5000) =>
+    fetchJson<ReplayDetailResponse>(
+      `/api/v1/replay/runs/${id}?snapshot_limit=${snapshotLimit}`,
+    ),
+  replayStop: (id: string) =>
+    fetchJson<{ ok: boolean; message: string }>(
+      `/api/v1/replay/runs/${id}/stop`,
+      { method: "POST" },
+    ),
+  replayDelete: (id: string) =>
+    fetchJson<{ ok: boolean }>(`/api/v1/replay/runs/${id}`, {
+      method: "DELETE",
+    }),
+  replayDeleteAll: () =>
+    fetchJson<{ ok: boolean; deleted: number }>(
+      "/api/v1/replay/runs?confirm=yes",
+      { method: "DELETE" },
+    ),
+  adminBackfill: (body: AdminBackfillRequest) =>
+    fetchJson<{ started: boolean; job_id: string; message: string }>(
+      "/api/v1/replay/admin/backfill",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    ),
 };
 
 export { ApiError };
