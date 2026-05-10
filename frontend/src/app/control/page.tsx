@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { PostmortemPanel } from "@/components/PostmortemPanel";
+
 import {
   ApiError,
   api,
@@ -255,6 +257,9 @@ export default function ControlPage() {
           />
           <JobsTable jobs={jobs} />
         </section>
+
+        {/* Section 4 — Postmortem Opus weekly */}
+        <PostmortemPanel />
 
         <footer
           className="mt-12 border-t border-[--color-surface-border] pt-4 text-xs text-[--color-text-muted]"
@@ -717,13 +722,4 @@ function JobsTable({ jobs }: { jobs: SchedulerJob[] }) {
               >
                 {j.last_status ?? "—"}
               </td>
-              <td className="px-3 py-2 text-[--color-text-muted]">
-                {j.last_message ?? "—"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+              <td className="px-3 py-2 text-[--color-text-muted]

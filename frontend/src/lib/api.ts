@@ -433,6 +433,20 @@ export interface EquityCurveResponse {
   count: number;
 }
 
+// ---------------------------------------------------------------------------
+// Postmortem (Claude Opus weekly review)
+// ---------------------------------------------------------------------------
+
+export interface PostmortemResponse {
+  period_start: string;
+  period_end: string;
+  markdown: string;
+  model: string;
+  tokens_input: number;
+  tokens_output: number;
+  cost_usd_estimate: number;
+}
+
 export interface NewsRefreshResponse {
   fetched: number;
   inserted: number;
@@ -700,6 +714,15 @@ export const api = {
       `/api/v1/paper/snapshot?portfolio_id=${encodeURIComponent(portfolioId)}`,
       { method: "POST" },
     ),
+
+  // ---- Postmortem ----
+
+  postmortemGenerate: (days = 7) =>
+    fetchJson<PostmortemResponse>("/api/v1/postmortem/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ days }),
+    }),
 
   refreshNews: () =>
     fetchJson<NewsRefreshResponse>("/api/v1/news/refresh", { method: "POST" }),
