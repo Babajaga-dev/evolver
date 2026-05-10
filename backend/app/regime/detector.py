@@ -9,6 +9,8 @@ from typing import Any
 import pandas as pd
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from datetime import datetime, timedelta, timezone
+
 from app.core.logging import get_logger
 from app.indicators.core import compute as compute_indicator
 from app.repositories import ohlcv as ohlcv_repo
@@ -50,10 +52,19 @@ async def detect_regime(
     lookback_candles: int = 120,
 ) -> RegimeSignal:
     """Calcola il regime corrente per un asset."""
+    # Default fetch_ohlcv usa start=end-30d. Per 1d sarebbe solo 30
+    # candele. Passiamo start esplicito calcolato dal lookback.
+    tf_days_map = {"15m": 1/96, "1h": 1/24, "4h": 1/6, "1d": 1, "1w": 7}
+    days_per_candle = tf_days_map.get(timeframe, 1)
+    end_dt = datetime.now(timezone.utc)
+    start_dt = end_dt - timedelta(days=int(lookback_candles * days_per_candle * 1.2))
+
     rows = await ohlcv_repo.fetch_ohlcv(
         session=session,
         symbol=symbol,
         timeframe=timeframe,
+        start=start_dt,
+        end=end_dt,
         limit=lookback_candles,
         order="asc",
     )
