@@ -257,12 +257,11 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
         log.info("replay.start", run_id=str(run_id), cursor=cursor.isoformat(), end=cfg.end_date.isoformat())
 
     total_days = max((cfg.end_date - cfg.start_date).days, 1)
-    snapshot_buffer: list[dict[str, Any]] = []
     iteration = 0
 
     try:
         while cursor < cfg.end_date:
-            # 1. Check status flag
+            # 1. Check status flag (every chunk)
             async with session_scope() as s:
                 r = await replay_repo.get_run(s, run_id)
                 if r is None:
@@ -273,7 +272,7 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
                     log.info("replay.stopped", run_id=str(run_id))
                     return
 
-            # 2. Re-evolution check
+            # 2. Re-evolution check (kept identical)
             needs_retrain = (
                 organism_params is None
                 or last_retrain_t is None
@@ -361,88 +360,99 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
                     sharpe=train_metrics.get("sharpe_train"),
                 )
 
-            # 3. Avanza di 1 candela 4h: simula la decisione per il prossimo bar
-            step_end = cursor + timedelta(hours=4)
-            # Pre-warm window per indicatori (60 candele indietro = ~10 giorni 4h)
-            recent_start = cursor - timedelta(days=20)
+            # 3. Chunk-based simulation: avanza al prossimo retrain (o end_date)
+            chunk_end = min(cursor + timedelta(days=cfg.retrain_cadence_days), cfg.end_date)
+            # Fetch dati nel chunk + warmup per indicatori (200 bars indietro)
+            warmup_start = cursor - timedelta(days=40)
             async with session_scope() as s:
-                df_4h_now = await _fetch_ohlcv_window(s, cfg.symbol, "4h", recent_start, step_end)
-                df_1h_now = await _fetch_ohlcv_window(s, cfg.symbol, "1h", recent_start, step_end)
-                df_1d_now = await _fetch_ohlcv_window(s, cfg.symbol, "1d", recent_start - timedelta(days=20), step_end)
+                df_4h_chunk = await _fetch_ohlcv_window(s, cfg.symbol, "4h", warmup_start, chunk_end)
+                df_1h_chunk = await _fetch_ohlcv_window(s, cfg.symbol, "1h", warmup_start, chunk_end)
+                df_1d_chunk = await _fetch_ohlcv_window(s, cfg.symbol, "1d", warmup_start - timedelta(days=40), chunk_end)
 
-            if df_4h_now is None or df_4h_now.empty or len(df_4h_now) < 2:
-                # Dati assenti, avanza e riprova
-                cursor = step_end
+            if df_4h_chunk is None or df_4h_chunk.empty or len(df_4h_chunk) < 10:
+                cursor = chunk_end
                 continue
-            if df_1d_now is None or df_1d_now.empty:
-                regime_now = pd.Series("range", index=df_4h_now.index)
+            if df_1d_chunk is None or df_1d_chunk.empty:
+                regime_chunk = pd.Series("range", index=df_4h_chunk.index)
             else:
                 try:
-                    regime_now = await _detect_regime_series(df_1d_now)
+                    regime_chunk = await _detect_regime_series(df_1d_chunk)
                 except Exception as exc:
                     log.warning("replay.regime_failed", error=str(exc))
-                    regime_now = pd.Series("range", index=df_4h_now.index)
-            if df_1h_now is None or df_1h_now.empty:
-                df_1h_now = df_4h_now  # fallback: use 4h candles as 1h surrogate
+                    regime_chunk = pd.Series("range", index=df_4h_chunk.index)
+            if df_1h_chunk is None or df_1h_chunk.empty:
+                df_1h_chunk = df_4h_chunk
+
             try:
+                # Simula il chunk: backtest unico, retorna equity full curve
                 sim = _compute_equity_and_drawdown(
-                df_4h=df_4h_now,
-                candles_by_tf={"1h": df_1h_now, "4h": df_4h_now, "1d": df_1d_now},
-                council_params=organism_params,
-                regime_series=regime_now,
-                initial_cash=cash,
-                fee=cfg.fee,
-                slippage_bps=cfg.slippage_bps,
+                    df_4h=df_4h_chunk,
+                    candles_by_tf={"1h": df_1h_chunk, "4h": df_4h_chunk, "1d": df_1d_chunk},
+                    council_params=organism_params,
+                    regime_series=regime_chunk,
+                    initial_cash=cash,
+                    fee=cfg.fee,
+                    slippage_bps=cfg.slippage_bps,
                 )
             except Exception as exc:
                 log.warning("replay.sim_failed", error=str(exc), cursor=cursor.isoformat())
-                cursor = step_end
+                cursor = chunk_end
                 continue
 
-            # Aggiorna equity con l'ULTIMO bar simulato (rolling step)
-            final_equity = sim["final_equity"]
-            equity_buf.append(final_equity)
-            cash = final_equity
-            iteration += 1
+            # Aggiorna cash al final del chunk + crea snapshot per ogni N bars del chunk
+            equity_arr = sim["equity"]
+            pos_arr = sim["position_size"]
+            # Snapshot solo per i bars del CHUNK (skippa warmup)
+            timestamps = df_4h_chunk.index
+            cursor_idx = None
+            for i, ts in enumerate(timestamps):
+                if ts >= cursor:
+                    cursor_idx = i
+                    break
+            if cursor_idx is None:
+                cursor = chunk_end
+                continue
 
-            # Snapshot ogni N bars
-            if iteration % SNAPSHOT_EVERY_N_BARS == 0 or cursor + timedelta(hours=4) >= cfg.end_date:
-                peak = max(equity_buf)
-                dd = (final_equity / peak - 1.0) * 100.0 if peak > 0 else 0.0
-                # Last regime label
-                last_regime = regime_now.iloc[-1] if len(regime_now) else None
-                snapshot_buffer.append({
-                    "t": step_end,
-                    "equity": final_equity,
-                    "position_size_pct": float(sim["position_size"][-1]) if len(sim["position_size"]) else 0.0,
-                    "drawdown_pct": dd,
-                    "regime": str(last_regime) if last_regime else None,
+            snapshot_rows: list[dict[str, Any]] = []
+            for i in range(cursor_idx, len(equity_arr)):
+                if (i - cursor_idx) % SNAPSHOT_EVERY_N_BARS != 0 and i != len(equity_arr) - 1:
+                    continue
+                eq = float(equity_arr[i])
+                peak_so_far = float(max(equity_arr[: i + 1]))
+                dd_now = (eq / peak_so_far - 1.0) * 100.0 if peak_so_far > 0 else 0.0
+                reg_label = regime_chunk.iloc[min(i, len(regime_chunk) - 1)] if len(regime_chunk) else None
+                ts = timestamps[i].to_pydatetime() if hasattr(timestamps[i], 'to_pydatetime') else timestamps[i]
+                snapshot_rows.append({
+                    "t": ts,
+                    "equity": eq,
+                    "position_size_pct": float(pos_arr[i]) if i < len(pos_arr) else 0.0,
+                    "drawdown_pct": dd_now,
+                    "regime": str(reg_label) if reg_label else None,
                     "active_strategy": "council",
                     "n_trades_so_far": int(sim["n_trades"]),
                 })
 
-            # Heartbeat + flush snapshots ogni N bars
-            if iteration % HEARTBEAT_EVERY_N_BARS == 0:
-                days_done = max((cursor - cfg.start_date).days, 0)
-                pct = min(days_done / total_days * 100.0, 99.9)
-                async with session_scope() as s:
-                    if snapshot_buffer:
-                        await replay_repo.append_equity_batch(s, replay_id=run_id, rows=snapshot_buffer)
-                        snapshot_buffer = []
-                    await replay_repo.update_progress(
-                        s,
-                        run_id,
-                        current_simulated_date=cursor,
-                        current_equity=cash,
-                        progress_pct=pct,
-                    )
+            cash = float(equity_arr[-1])
+            equity_buf.append(cash)
+            iteration += 1
 
-            cursor = step_end
+            # Persist snapshots + progress
+            days_done = max((chunk_end - cfg.start_date).days, 0)
+            pct = min(days_done / total_days * 100.0, 99.9)
+            async with session_scope() as s:
+                if snapshot_rows:
+                    await replay_repo.append_equity_batch(s, replay_id=run_id, rows=snapshot_rows)
+                await replay_repo.update_progress(
+                    s, run_id,
+                    current_simulated_date=chunk_end,
+                    current_equity=cash,
+                    progress_pct=pct,
+                )
 
-        # 4. Fine: flush + final metrics
+            cursor = chunk_end
+
+        # 4. Fine: final metrics
         async with session_scope() as s:
-            if snapshot_buffer:
-                await replay_repo.append_equity_batch(s, replay_id=run_id, rows=snapshot_buffer)
             await replay_repo.update_progress(
                 s, run_id,
                 current_simulated_date=cursor,
