@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { PostmortemPanel } from "@/components/PostmortemPanel";
-
 import {
   ApiError,
   api,
@@ -722,4 +721,13 @@ function JobsTable({ jobs }: { jobs: SchedulerJob[] }) {
               >
                 {j.last_status ?? "—"}
               </td>
-              <td className="px-3 py-2 text-[--color-text-muted]
+              <td className="px-3 py-2 text-[--color-text-muted]">
+                {j.last_message ?? "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
