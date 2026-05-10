@@ -447,6 +447,22 @@ export interface PostmortemResponse {
   cost_usd_estimate: number;
 }
 
+// ---------------------------------------------------------------------------
+// Regime detector
+// ---------------------------------------------------------------------------
+
+export interface RegimeResponse {
+  symbol: string;
+  timestamp: string;
+  regime: string;
+  confidence: number;
+  adx: number;
+  atr_pct: number;
+  sma_slope_pct: number;
+  rsi: number;
+  notes: string;
+}
+
 export interface NewsRefreshResponse {
   fetched: number;
   inserted: number;
@@ -723,6 +739,13 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ days }),
     }),
+
+  // ---- Regime detector ----
+
+  regime: (symbol: string, timeframe = "1d", lookback = 120) =>
+    fetchJson<RegimeResponse>(
+      `/api/v1/regime/${encodeURIComponent(symbol)}?timeframe=${timeframe}&lookback_candles=${lookback}`,
+    ),
 
   refreshNews: () =>
     fetchJson<NewsRefreshResponse>("/api/v1/news/refresh", { method: "POST" }),
