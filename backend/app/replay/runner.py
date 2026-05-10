@@ -279,8 +279,14 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
                 or last_retrain_t is None
                 or (cursor - last_retrain_t).days >= cfg.retrain_cadence_days
             )
+            # Kill switch: solo se abbiamo >= 60 bars (~10 giorni 4h) di storia
+            # nel buffer, ALTRIMENTI il drawdown è troppo rumoroso da inizializzazione.
+            # E nuovo cooldown: niente kill se l'ultimo retrain è < 7 giorni fa
+            cooldown_ok = last_retrain_t is None or (cursor - last_retrain_t).days >= 7
             kill_triggered = (
-                _drawdown_window(equity_buf, cfg.kill_switch_window_days * 6)
+                len(equity_buf) >= 60
+                and cooldown_ok
+                and _drawdown_window(equity_buf, cfg.kill_switch_window_days * 6)
                 < cfg.kill_switch_dd_pct
             )
             if kill_triggered:
