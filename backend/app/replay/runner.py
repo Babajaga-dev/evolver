@@ -141,6 +141,7 @@ def _compute_equity_and_drawdown(
     initial_cash: float,
     fee: float,
     slippage_bps: float,
+    start_idx: int = 0,
 ) -> dict[str, np.ndarray | float]:
     """Backtest del Council sul df_4h dato.
 
@@ -173,8 +174,11 @@ def _compute_equity_and_drawdown(
 
     for i in range(1, n):
         price = close[i]
-        # Mark to market
+        # Mark to market (always)
         equity[i] = cash + coins * price
+        # Skip trades before start_idx (warmup region)
+        if i < start_idx:
+            continue
 
         if in_position and exits_arr[i]:
             cash = coins * price * (1.0 - fee_total)
@@ -383,26 +387,7 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
             if df_1h_chunk is None or df_1h_chunk.empty:
                 df_1h_chunk = df_4h_chunk
 
-            try:
-                # Simula il chunk: backtest unico, retorna equity full curve
-                sim = _compute_equity_and_drawdown(
-                    df_4h=df_4h_chunk,
-                    candles_by_tf={"1h": df_1h_chunk, "4h": df_4h_chunk, "1d": df_1d_chunk},
-                    council_params=organism_params,
-                    regime_series=regime_chunk,
-                    initial_cash=cash,
-                    fee=cfg.fee,
-                    slippage_bps=cfg.slippage_bps,
-                )
-            except Exception as exc:
-                log.warning("replay.sim_failed", error=str(exc), cursor=cursor.isoformat())
-                cursor = chunk_end
-                continue
-
-            # Aggiorna cash al final del chunk + crea snapshot per ogni N bars del chunk
-            equity_arr = sim["equity"]
-            pos_arr = sim["position_size"]
-            # Snapshot solo per i bars del CHUNK (skippa warmup)
+            # Pre-compute cursor_idx (index nel df dove inizia il chunk)
             timestamps = df_4h_chunk.index
             cursor_idx = None
             for i, ts in enumerate(timestamps):
@@ -412,6 +397,26 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
             if cursor_idx is None:
                 cursor = chunk_end
                 continue
+            try:
+                # Simula il chunk: backtest con start_idx = cursor_idx
+                # (la warmup region è solo per gli indicatori, niente trade lì)
+                sim = _compute_equity_and_drawdown(
+                    df_4h=df_4h_chunk,
+                    candles_by_tf={"1h": df_1h_chunk, "4h": df_4h_chunk, "1d": df_1d_chunk},
+                    council_params=organism_params,
+                    regime_series=regime_chunk,
+                    initial_cash=cash,
+                    fee=cfg.fee,
+                    slippage_bps=cfg.slippage_bps,
+                    start_idx=cursor_idx,
+                )
+            except Exception as exc:
+                log.warning("replay.sim_failed", error=str(exc), cursor=cursor.isoformat())
+                cursor = chunk_end
+                continue
+
+            equity_arr = sim["equity"]
+            pos_arr = sim["position_size"]
 
             snapshot_rows: list[dict[str, Any]] = []
             for i in range(cursor_idx, len(equity_arr)):
