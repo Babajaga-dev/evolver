@@ -134,3 +134,27 @@ def decode_chromosome(
     Filtra solo le keys conosciute dallo spec (pymoo a volte aggiunge meta).
     """
     return {k: x[k] for k in spec.param_names if k in x}
+
+
+# ---------------------------------------------------------------------------
+# Default chromosome (baseline / textbook params)
+# ---------------------------------------------------------------------------
+
+
+def get_default_chromosome(strategy_id: str) -> dict[str, Any]:
+    """Ritorna il cromosoma 'baseline' (textbook) per una strategia.
+
+    Combina i ParamSpec.default della strategia + UNIVERSAL_PARAMS.default.
+    Usato dall'OOS runner per il confronto GA-optimized vs no-optimization.
+
+    Esempio rsi_mean_reversion:
+        {"rsi_period": 14, "buy_below": 30.0, "sell_above": 70.0,
+         "position_size_pct": 50.0}
+    """
+    spec = get_strategy(strategy_id)
+    out: dict[str, Any] = {}
+    for p in spec.params:
+        out[p.name] = p.default
+    for p in UNIVERSAL_PARAMS.values():
+        out[p.name] = p.default
+    return out

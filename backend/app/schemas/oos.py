@@ -33,8 +33,19 @@ class OosStrategyOut(BaseModel):
     win_rate_test: float | None
     final_equity_test: float
     degradation_pct: float | None
+    alpha_vs_baseline: float | None = None
     verdict: str
     verdict_reason: str
+
+
+class OosBaselineOut(BaseModel):
+    chromosome: dict[str, Any]
+    sharpe_test: float | None
+    total_return_test: float
+    max_drawdown_test: float
+    n_trades_test: int
+    win_rate_test: float | None
+    final_equity_test: float
 
 
 class OosEvolutionPointOut(BaseModel):
@@ -61,9 +72,11 @@ class OosResultResponse(BaseModel):
     initial_cash: float
     strategies: list[OosStrategyOut]
     evolution_curve: list[OosEvolutionPointOut]
+    baseline: OosBaselineOut | None = None
     overall_verdict: str
     overall_reason: str
     n_robust: int
     n_mixed: int
     n_overfit: int
     n_no_signal: int
+    n_alpha_positive: int = 0

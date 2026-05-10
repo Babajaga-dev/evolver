@@ -481,8 +481,19 @@ export interface OosStrategyOut {
   win_rate_test: number | null;
   final_equity_test: number;
   degradation_pct: number | null;
+  alpha_vs_baseline: number | null;
   verdict: string;
   verdict_reason: string;
+}
+
+export interface OosBaselineOut {
+  chromosome: Record<string, number | string>;
+  sharpe_test: number | null;
+  total_return_test: number;
+  max_drawdown_test: number;
+  n_trades_test: number;
+  win_rate_test: number | null;
+  final_equity_test: number;
 }
 
 export interface OosEvolutionPoint {
@@ -509,12 +520,14 @@ export interface OosResultResponse {
   initial_cash: number;
   strategies: OosStrategyOut[];
   evolution_curve: OosEvolutionPoint[];
+  baseline: OosBaselineOut | null;
   overall_verdict: string;
   overall_reason: string;
   n_robust: number;
   n_mixed: number;
   n_overfit: number;
   n_no_signal: number;
+  n_alpha_positive: number;
 }
 
 export interface NewsRefreshResponse {

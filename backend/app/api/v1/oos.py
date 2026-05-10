@@ -11,6 +11,7 @@ from app.core.db import get_db_session
 from app.core.logging import get_logger
 from app.oos import OosError, validate_oos
 from app.schemas.oos import (
+    OosBaselineOut,
     OosEvolutionPointOut,
     OosResultResponse,
     OosStrategyOut,
@@ -89,15 +90,30 @@ async def oos_validate(
                 win_rate_test=s.win_rate_test,
                 final_equity_test=s.final_equity_test,
                 degradation_pct=s.degradation_pct,
+                alpha_vs_baseline=s.alpha_vs_baseline,
                 verdict=s.verdict,
                 verdict_reason=s.verdict_reason,
             )
             for s in result.strategies
         ],
+        baseline=(
+            OosBaselineOut(
+                chromosome=result.baseline.chromosome,
+                sharpe_test=result.baseline.sharpe_test,
+                total_return_test=result.baseline.total_return_test,
+                max_drawdown_test=result.baseline.max_drawdown_test,
+                n_trades_test=result.baseline.n_trades_test,
+                win_rate_test=result.baseline.win_rate_test,
+                final_equity_test=result.baseline.final_equity_test,
+            )
+            if result.baseline is not None
+            else None
+        ),
         overall_verdict=result.overall_verdict,
         overall_reason=result.overall_reason,
         n_robust=result.n_robust,
         n_mixed=result.n_mixed,
         n_overfit=result.n_overfit,
         n_no_signal=result.n_no_signal,
+        n_alpha_positive=result.n_alpha_positive,
     )

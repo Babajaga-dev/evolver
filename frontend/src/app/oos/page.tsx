@@ -16,6 +16,7 @@ import {
   ApiError,
   api,
   type GaRunSummary,
+  type OosBaselineOut,
   type OosEvolutionPoint,
   type OosResultResponse,
   type OosStrategyOut,
@@ -428,6 +429,9 @@ function OosReport({ result }: { result: OosResultResponse }) {
         />
       </section>
 
+      {/* Baseline summary (textbook params, no GA) */}
+      {result.baseline && <BaselineBanner baseline={result.baseline} alphaCount={result.n_alpha_positive} totalK={result.strategies.length} />}
+
       {/* Per-strategy table */}
       <section className="border border-[--color-surface-border] bg-[--color-surface-card] overflow-x-auto">
         <table
@@ -443,6 +447,7 @@ function OosReport({ result }: { result: OosResultResponse }) {
               <th className="px-3 py-2 text-left">Verdict</th>
               <th className="px-3 py-2 text-right">Sharpe train</th>
               <th className="px-3 py-2 text-right">Sharpe test</th>
+              <th className="px-3 py-2 text-right">Alpha vs base</th>
               <th className="px-3 py-2 text-right">Δ%</th>
               <th className="px-3 py-2 text-right">Return test</th>
               <th className="px-3 py-2 text-right">DD test</th>
@@ -460,6 +465,81 @@ function OosReport({ result }: { result: OosResultResponse }) {
         </table>
       </section>
     </>
+  );
+}
+
+
+function BaselineBanner({
+  baseline,
+  alphaCount,
+  totalK,
+}: {
+  baseline: OosBaselineOut;
+  alphaCount: number;
+  totalK: number;
+}) {
+  const sh = baseline.sharpe_test;
+  const ret = baseline.total_return_test;
+  const rate = totalK > 0 ? Math.round((alphaCount / totalK) * 100) : 0;
+  return (
+    <section
+      className="border bg-[--color-surface-card] px-4 py-3"
+      style={{
+        borderColor: "var(--color-gold)",
+        borderStyle: "dashed",
+        borderWidth: "1px",
+      }}
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-4">
+        <div>
+          <p
+            className="text-[10px] uppercase tracking-[0.25em] text-[--color-gold]"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            · BASELINE · TEXTBOOK PARAMS · NO GA ·
+          </p>
+          <p
+            className="mt-1 text-[--color-text-primary]"
+            style={{ fontFamily: "var(--font-mono)", fontSize: "13px" }}
+          >
+            Sharpe={sh !== null ? sh.toFixed(2) : "—"} · Return=
+            {ret >= 0 ? "+" : ""}
+            {(ret * 100).toFixed(2)}% · Trades={baseline.n_trades_test} · DD=
+            {(baseline.max_drawdown_test * 100).toFixed(2)}% · WinRate=
+            {baseline.win_rate_test !== null
+              ? `${(baseline.win_rate_test * 100).toFixed(0)}%`
+              : "—"}
+          </p>
+          <p
+            className="mt-1 text-[11px] text-[--color-text-muted]"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            Confronto: {alphaCount}/{totalK} strategie GA battono il baseline ({rate}%).
+            {rate >= 50
+              ? " Il GA aggiunge alpha reale."
+              : " Il GA non sta producendo alpha — overfit cosmetico."}
+          </p>
+        </div>
+        <div className="text-right">
+          <p
+            className="text-[10px] uppercase tracking-[0.2em] text-[--color-text-secondary]"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            Alpha rate
+          </p>
+          <p
+            className="text-[--color-text-primary]"
+            style={{
+              fontFamily: "var(--font-deco)",
+              fontSize: "1.6rem",
+              color: rate >= 50 ? "#00ff99" : "var(--color-crimson)",
+            }}
+          >
+            {rate}%
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -496,6 +576,29 @@ function StrategyRow({ s }: { s: OosStrategyOut }) {
         }}
       >
         {s.sharpe_test !== null ? s.sharpe_test.toFixed(2) : "—"}
+      </td>
+      <td
+        className="px-3 py-2 text-right"
+        style={{
+          color:
+            s.alpha_vs_baseline === null
+              ? "var(--color-text-muted)"
+              : s.alpha_vs_baseline > 0
+                ? "#00ff99"
+                : "var(--color-crimson)",
+          fontWeight: 700,
+        }}
+        title={
+          s.alpha_vs_baseline === null
+            ? "Baseline non disponibile"
+            : s.alpha_vs_baseline > 0
+              ? "Il GA batte il baseline (textbook): aggiunge valore"
+              : "Il GA NON batte il baseline: overfit cosmetico"
+        }
+      >
+        {s.alpha_vs_baseline !== null
+          ? `${s.alpha_vs_baseline >= 0 ? "+" : ""}${s.alpha_vs_baseline.toFixed(2)}`
+          : "—"}
       </td>
       <td
         className="px-3 py-2 text-right"

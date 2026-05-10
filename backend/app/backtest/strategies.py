@@ -109,6 +109,40 @@ def _bb_breakout(
     return entries.fillna(False), exits.fillna(False)
 
 
+
+def _rsi_macd_combo(
+    df: pd.DataFrame, p: dict[str, Any]
+) -> tuple[pd.Series, pd.Series]:
+    """RSI mean-reversion + MACD trend filter.
+
+    Long quando: RSI < buy_below AND MACD line > signal line (trend bullish).
+    Exit quando: RSI > sell_above OR MACD line < signal line (trend bearish).
+
+    Più selettivo del puro RSI: il MACD filter evita di comprare dip in
+    bear sostenuti (es. crash 2022) dove RSI < 30 ma il trend continua
+    a scendere.
+    """
+    rsi_out, _ = compute_indicator("rsi", df, {"period": p["rsi_period"]})
+    macd_out, _ = compute_indicator(
+        "macd",
+        df,
+        {
+            "fast": p["macd_fast"],
+            "slow": p["macd_slow"],
+            "signal": p["macd_signal"],
+        },
+    )
+    rsi = rsi_out["rsi"]
+    macd = macd_out["macd"]
+    signal = macd_out["signal"]
+    macd_bullish = macd > signal
+    macd_bearish = macd < signal
+
+    entries = (rsi < p["buy_below"]) & macd_bullish
+    exits = (rsi > p["sell_above"]) | macd_bearish
+    return entries.fillna(False), exits.fillna(False)
+
+
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
@@ -180,6 +214,26 @@ STRATEGY_REGISTRY: dict[str, StrategySpec] = {
         ),
         fn=_bb_breakout,
     ),
+    "rsi_macd_combo": StrategySpec(
+        id="rsi_macd_combo",
+        label="RSI + MACD Combo",
+        family="mean_reversion",
+        description=(
+            "Multi-indicatore: RSI mean-reversion con filtro di trend MACD. "
+            "Long quando RSI<buy_below AND MACD line > signal line. Exit "
+            "quando RSI>sell_above OR MACD bearish. Più selettivo del puro "
+            "RSI — evita dip-buying in bear sostenuti (es. 2022)."
+        ),
+        params=(
+            ParamSpec("rsi_period", "int", default=14, min=8, max=50),
+            ParamSpec("buy_below", "float", default=30.0, min=15.0, max=40.0),
+            ParamSpec("sell_above", "float", default=70.0, min=55.0, max=85.0),
+            ParamSpec("macd_fast", "int", default=12, min=5, max=20),
+            ParamSpec("macd_slow", "int", default=26, min=15, max=40),
+            ParamSpec("macd_signal", "int", default=9, min=3, max=15),
+        ),
+        fn=_rsi_macd_combo,
+    ),
 }
 
 
@@ -201,6 +255,15 @@ def has_invalid_constraint(strategy_id: str, params: dict[str, object]) -> bool:
             return int(fast) >= int(slow)  # type: ignore[arg-type]
         except (TypeError, ValueError):
             return True  # type errato = constraint violato
+    if strategy_id == "rsi_macd_combo":
+        fast = params.get("macd_fast")
+        slow = params.get("macd_slow")
+        if fast is None or slow is None:
+            return True
+        try:
+            return int(fast) >= int(slow)
+        except (TypeError, ValueError):
+            return True
     return False
 
 
