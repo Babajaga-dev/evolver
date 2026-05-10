@@ -41,7 +41,7 @@ def backtest_council_static(
     for i in range(1, n):
         price = close[i]
         if in_position and x_arr[i]:
-            cash = coins * price * (1.0 - fee_total)
+            cash += coins * price * (1.0 - fee_total)  # ADD not REPLACE
             coins = 0.0
             in_position = False
             n_trades += 1

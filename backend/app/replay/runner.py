@@ -181,7 +181,7 @@ def _compute_equity_and_drawdown(
             continue
 
         if in_position and exits_arr[i]:
-            cash = coins * price * (1.0 - fee_total)
+            cash += coins * price * (1.0 - fee_total)  # ADD not REPLACE
             coins = 0.0
             in_position = False
             n_trades += 1
