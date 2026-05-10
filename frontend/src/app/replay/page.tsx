@@ -600,11 +600,12 @@ function DetailView({ detail }: { detail: ReplayDetailResponse }) {
 }
 
 function SummaryCard({ summary }: { summary: ReplayRunSummary }) {
-  const fm = (summary.final_metrics ?? {}) as Record<string, number | Record<string, number>>;
+  const fm = (summary.final_metrics ?? {}) as Record<string, unknown>;
   const sharpe = typeof fm["sharpe"] === "number" ? (fm["sharpe"] as number) : null;
   const totalReturn = typeof fm["total_return"] === "number" ? (fm["total_return"] as number) : null;
   const dd = typeof fm["max_drawdown"] === "number" ? (fm["max_drawdown"] as number) : null;
-  const bh = (fm["baselines"] as Record<string, Record<string, number>> | undefined)?.buy_hold;
+  const baselines = fm["baselines"] as Record<string, Record<string, number>> | undefined;
+  const bh = baselines?.buy_hold;
   return (
     <section
       className="border bg-[--color-surface-card] p-4"

@@ -69,8 +69,12 @@ async def list_replays(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     limit: int = Query(default=50, ge=1, le=200),
 ) -> ReplayListResponse:
-    runs = await replay_repo.list_runs(session, limit=limit)
-    return ReplayListResponse(runs=[_to_summary(r) for r in runs])
+    try:
+        runs = await replay_repo.list_runs(session, limit=limit)
+        return ReplayListResponse(runs=[_to_summary(r) for r in runs])
+    except Exception as exc:
+        log.exception("replay.list_failed", error=str(exc))
+        raise HTTPException(500, f"replay list failed: {type(exc).__name__}: {exc}")
 
 
 @router.get("/runs/{run_id}", response_model=ReplayDetailResponse)
