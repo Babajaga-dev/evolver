@@ -508,7 +508,7 @@ export const api = {
   systemJobs: () => fetchJson<SchedulerJobsList>("/api/v1/system/jobs"),
 
   runSystemJob: (jobId: string) =>
-    fetchJson<{ job_id: string; status: string }>(
+    fetchJson<{ id: string; triggered: boolean; message: string }>(
       `/api/v1/system/jobs/${encodeURIComponent(jobId)}/run`,
       { method: "POST" },
     ),

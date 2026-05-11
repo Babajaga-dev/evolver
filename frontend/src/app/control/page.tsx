@@ -423,15 +423,12 @@ function DatabaseStats({ stats }: { stats: MaintenanceStats | null }) {
       <div className="font-mono text-sm text-[--color-text-muted]">—</div>
     );
   }
+  const oldestStr = stats.ohlcv.oldest ? stats.ohlcv.oldest.slice(0, 10) : "—";
+  const newestStr = stats.ohlcv.newest ? stats.ohlcv.newest.slice(0, 10) : "—";
   const cards = [
     { label: "OHLCV candles", value: stats.ohlcv.count },
-    { label: "GA Postgres pop.", value: stats.ga_postgres.populations },
-    { label: "GA Postgres strat.", value: stats.ga_postgres.strategies },
-    { label: "GA Redis runs", value: stats.ga_redis.total },
-    {
-      label: "Fitness eval.",
-      value: stats.ga_postgres.fitness_evaluations,
-    },
+    { label: "Oldest candle", value: oldestStr },
+    { label: "Newest candle", value: newestStr },
   ];
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
