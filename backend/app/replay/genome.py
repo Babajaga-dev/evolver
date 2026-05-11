@@ -19,7 +19,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from pymoo.core.variable import Integer, Real
 
 from app.replay.council import INDICATORS, REGIMES, CouncilParams, VoterParams
 
@@ -46,16 +45,6 @@ for _r in REGIMES:
     for _i in INDICATORS:
         GENOME_SPEC.append((f"w_{_r}_{_i}", "float", 0.0, 1.0))
 
-
-def pymoo_vars_for_council() -> dict[str, Any]:
-    """Costruisce il dict vars= per MixedVariableProblem di pymoo."""
-    out: dict[str, Any] = {}
-    for name, kind, lo, hi in GENOME_SPEC:
-        if kind == "int":
-            out[name] = Integer(bounds=(int(lo), int(hi)))
-        else:
-            out[name] = Real(bounds=(float(lo), float(hi)))
-    return out
 
 
 def decode_to_council(x: dict[str, Any]) -> CouncilParams:

@@ -28,27 +28,6 @@ const CLEANUP_SPECS: CleanupSpec[] = [
     supportsAge: true,
     destructive: true,
   },
-  {
-    target: "ga_runs_failed",
-    label: "Purge GA runs falliti",
-    description: "Cancella dal Redis i run con status=failed.",
-    supportsAge: false,
-    destructive: false,
-  },
-  {
-    target: "ga_runs_completed",
-    label: "Purge GA runs completati",
-    description: "Cancella dal Redis i run con status=completed.",
-    supportsAge: false,
-    destructive: false,
-  },
-  {
-    target: "ga_runs_all",
-    label: "Purge tutti i GA runs",
-    description: "Wipe completo dello stato GA su Redis (esclusi i running).",
-    supportsAge: false,
-    destructive: true,
-  },
 ];
 
 export default function ControlPage() {

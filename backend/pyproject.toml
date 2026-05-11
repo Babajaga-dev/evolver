@@ -41,8 +41,6 @@ dependencies = [
     "scipy>=1.14.0",
 
     # ML / GA
-    "deap>=1.4.1",  # legacy/baseline GA — pymoo preferito per multi-objective
-    "pymoo>=0.6.1",  # multi-objective optimization (NSGA-II/III, MOEA/D)
     "optuna>=3.6.0",  # Bayesian TPE — MDPI 2026 paper shows +75% win rate vs evolutionary
     "scikit-learn>=1.5.0",
 
@@ -51,14 +49,12 @@ dependencies = [
     "numba>=0.60.0",  # JIT compiler richiesto da vectorbt
 
     # LLM
-    "anthropic>=0.40.0",
 
     # HTTP & async
     "httpx>=0.28.0",
     "tenacity>=9.0.0",  # retry logic
 
     # News parsing
-    "feedparser>=6.0.11",
 
     # Scheduler (lifespan-managed)
     "apscheduler>=3.10.4",
@@ -135,7 +131,7 @@ disallow_untyped_defs = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["ccxt.*", "deap.*", "pandas_ta_classic.*", "feedparser.*"]
+module = ["ccxt.*", "pandas_ta_classic.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

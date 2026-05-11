@@ -39,20 +39,11 @@ export default function Home() {
           <a className="hover:text-[--color-gold]" href="/backtest">
             ◆ Backtest
           </a>
-          <a className="hover:text-[--color-gold]" href="/population">
-            ◆ Population
-          </a>
-          <a className="hover:text-[--color-gold]" href="/paper">
-            ◆ Paper
-          </a>
           <a className="hover:text-[--color-gold]" href="/regime">
             ◆ Regime
           </a>
           <a className="hover:text-[--color-gold]" href="/replay">
             ◆ Replay
-          </a>
-          <a className="hover:text-[--color-gold]" href="/oos">
-            ◆ OOS
           </a>
           <a className="hover:text-[--color-gold]" href="/control">
             ◆ Control

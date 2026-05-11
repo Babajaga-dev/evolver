@@ -117,13 +117,6 @@ def _register_jobs(sched: AsyncIOScheduler) -> None:
         name="OHLCV auto backfill (Binance)",
         replace_existing=True,
     )
-    sched.add_job(
-        _job_paper_engine_tick,
-        trigger=IntervalTrigger(seconds=900),  # ogni 15 min
-        id="paper.engine_tick",
-        name="Paper engine tick (signals -> trades -> equity)",
-        replace_existing=True,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -194,55 +187,6 @@ async def _job_ohlcv_auto_backfill() -> None:
         _record(job_id, "error", str(exc), _now_ts() - started)
         log.exception("system.scheduler.ohlcv_backfill.failed", error=str(exc))
 
-
-async def _job_paper_engine_tick() -> None:
-    """Tick paper engine: legge top GA strategies, genera/chiude paper trades,
-    aggiorna equity_snapshots. Settings: paper.engine flag enabled.
-    """
-    job_id = "paper.engine_tick"
-    started = _now_ts()
-    try:
-        async with session_scope() as session:
-            cfg = await settings_repo.get_value(session, job_id)
-            if not cfg.get("enabled"):
-                _record(job_id, "skipped", "disabled", _now_ts() - started)
-                return
-
-            from app.paper.engine import PaperEngineConfig, run_engine_tick
-
-            engine_cfg = PaperEngineConfig(
-                portfolio_id=str(cfg.get("portfolio_id", "paper-v1")),
-                top_n_strategies=int(cfg.get("top_n_strategies", 3)),
-                min_sharpe_robust=float(cfg.get("min_sharpe_robust", 0.5)),
-            )
-            result = await run_engine_tick(session, config=engine_cfg)
-            _record(
-                job_id,
-                "ok" if result.get("status") == "ok" else "skipped",
-                (
-                    f"opened={result.get('trades_opened', 0)} "
-                    f"closed={result.get('trades_closed', 0)} "
-                    f"equity={result.get('equity_after', 0):.2f}"
-                    if result.get("status") == "ok"
-                    else result.get("reason", "no-op")
-                ),
-                _now_ts() - started,
-            )
-            log.info("system.scheduler.paper_engine.done", **result)
-    except Exception as exc:
-        _record(job_id, "error", str(exc), _now_ts() - started)
-        log.exception("system.scheduler.paper_engine.failed", error=str(exc))
-
-
-# ---------------------------------------------------------------------------
-# Manual trigger
-# ---------------------------------------------------------------------------
-
-
-JOB_FUNCS: dict[str, Any] = {
-    "ohlcv.auto_backfill": _job_ohlcv_auto_backfill,
-    "paper.engine_tick": _job_paper_engine_tick,
-}
 
 
 async def trigger_now(job_id: str) -> None:

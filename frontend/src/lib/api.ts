@@ -1,83 +1,106 @@
 /**
- * Client TS verso il backend Evolver.
+ * API client per Evolver backend.
  *
- * Usa NEXT_PUBLIC_BACKEND_URL (build-time inline) con default
- * `http://api.evolve.lan` per chiamate cross-origin dal browser.
+ * Tutto type-safe, no `any`. Errori wrappati in ApiError per gestione UI.
+ *
+ * NEXT_PUBLIC_BACKEND_URL deve essere build-inlinato (Next.js public env).
  */
 
 export const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://api.evolve.lan";
 
+export class ApiError extends Error {
+  public status: number;
+  public body: unknown;
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const url = `${BACKEND_URL}${path}`;
+  const res = await fetch(url, init);
+  const text = await res.text();
+  let body: unknown = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = text;
+  }
+  if (!res.ok) {
+    const msg =
+      body && typeof body === "object" && body !== null && "detail" in body
+        ? String((body as { detail: unknown }).detail)
+        : `HTTP ${res.status}: ${res.statusText}`;
+    throw new ApiError(msg, res.status, body);
+  }
+  return body as T;
+}
+
 // ---------------------------------------------------------------------------
-// Types — mirror dei Pydantic schemas
+// OHLCV / Markets
 // ---------------------------------------------------------------------------
 
-export interface OHLCVCandle {
-  timestamp: string; // ISO 8601
-  symbol: string;
-  timeframe: string;
-  open: string; // Decimal as string
-  high: string;
-  low: string;
-  close: string;
-  volume: string;
+export interface Candle {
+  timestamp: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
 }
 
 export interface OHLCVResponse {
   symbol: string;
   timeframe: string;
+  start: string;
+  end: string;
   count: number;
-  candles: OHLCVCandle[];
+  candles: Candle[];
+}
+
+export interface MarketInfo {
+  symbol: string;
+  timeframes: string[];
 }
 
 export interface MarketsResponse {
-  symbols: string[];
-  timeframes: string[];
+  markets: MarketInfo[];
 }
 
 export interface CoverageRow {
   symbol: string;
   timeframe: string;
   count: number;
-  first: string | null;
-  last: string | null;
-}
-
-export interface HealthResponse {
-  status: "ok" | "degraded";
-  database: boolean;
-  timescale: boolean;
-  redis: boolean;
+  oldest: string | null;
+  newest: string | null;
 }
 
 // ---------------------------------------------------------------------------
 // Indicators
 // ---------------------------------------------------------------------------
 
-export interface IndicatorParamInfo {
+export interface IndicatorParam {
   name: string;
-  type: "int" | "float" | "str";
-  default: number | string;
-  min?: number | null;
-  max?: number | null;
-  choices?: string[] | null;
-  description?: string;
+  type: string;
+  default: number | string | null;
+  min: number | null;
+  max: number | null;
+  description: string | null;
 }
 
 export interface IndicatorInfo {
   id: string;
-  label: string;
-  kind: "overlay" | "panel";
+  family: string;
   description: string;
-  params: IndicatorParamInfo[];
+  params: IndicatorParam[];
   output_keys: string[];
 }
 
-export interface IndicatorsRegistryResponse {
-  indicators: IndicatorInfo[];
-}
-
-export interface IndicatorPoint {
+export interface IndicatorSeriesPoint {
   timestamp: string;
   values: Record<string, number | null>;
 }
@@ -87,54 +110,39 @@ export interface IndicatorResponse {
   timeframe: string;
   indicator: string;
   params: Record<string, number | string>;
-  output_keys: string[];
+  start: string;
+  end: string;
   count: number;
-  points: IndicatorPoint[];
-  label: string;
-  kind: "overlay" | "panel";
+  series: IndicatorSeriesPoint[];
 }
 
 // ---------------------------------------------------------------------------
 // Backtest
 // ---------------------------------------------------------------------------
 
-export interface StrategyParamInfo {
+export interface StrategyParam {
   name: string;
-  type: "int" | "float" | "str";
-  default: number | string;
-  min?: number | null;
-  max?: number | null;
-  description?: string;
+  type: string;
+  default: number | string | null;
+  min: number | null;
+  max: number | null;
 }
 
 export interface StrategyInfo {
   id: string;
   label: string;
-  family: "trend_follow" | "mean_reversion" | "breakout" | "volatility";
+  family: string;
   description: string;
-  params: StrategyParamInfo[];
-}
-
-export interface StrategiesRegistryResponse {
-  strategies: StrategyInfo[];
-}
-
-export interface BacktestRequest {
-  symbol: string;
-  timeframe: string;
-  strategy_id: string;
-  params: Record<string, number | string>;
-  period_days: number;
-  initial_cash: number;
+  params: StrategyParam[];
 }
 
 export interface TradeRecord {
   entry_time: string;
-  exit_time: string | null;
+  exit_time: string;
+  side: string;
   entry_price: number;
-  exit_price: number | null;
+  exit_price: number;
   size: number;
-  direction: string;
   pnl: number;
   pnl_pct: number;
 }
@@ -147,14 +155,12 @@ export interface EquityPoint {
 
 export interface BacktestMetrics {
   total_return: number;
-  sharpe: number | null;
-  sortino: number | null;
-  calmar: number | null;
+  sharpe: number;
   max_drawdown: number;
-  win_rate: number | null;
-  profit_factor: number | null;
   n_trades: number;
-  avg_trade_pct: number | null;
+  win_rate: number | null;
+  avg_win: number | null;
+  avg_loss: number | null;
   final_equity: number;
 }
 
@@ -162,230 +168,35 @@ export interface BacktestResponse {
   symbol: string;
   timeframe: string;
   strategy_id: string;
-  strategy_label: string;
   params: Record<string, number | string>;
   initial_cash: number;
   fee: number;
-  slippage: number;
-  start: string;
-  end: string;
-  equity_curve: EquityPoint[];
-  trades: TradeRecord[];
   metrics: BacktestMetrics;
+  equity: EquityPoint[];
+  trades: TradeRecord[];
 }
 
-// ---------------------------------------------------------------------------
-// Walk-forward
-// ---------------------------------------------------------------------------
-
-export interface WalkForwardRequest {
-  symbol: string;
-  timeframe: string;
-  strategy_id: string;
-  params: Record<string, number | string>;
-  period_days: number;
-  initial_cash: number;
-  n_windows: number;
-}
-
-export interface WindowResult {
-  window_index: number;
-  window_start: string;
-  window_end: string;
-  n_candles: number;
-  n_trades: number;
-  total_return: number;
-  sharpe: number | null;
-  calmar: number | null;
-  max_drawdown: number;
-  win_rate: number | null;
-  final_equity: number;
-}
-
-export type WalkForwardVerdict =
-  | "robust"
-  | "mixed"
-  | "unstable"
-  | "no_signal";
-
-export interface WalkForwardSummary {
-  n_windows: number;
-  n_windows_winning: number;
-  n_windows_with_trades: number;
-  mean_total_return: number;
-  std_total_return: number;
-  mean_sharpe: number | null;
-  std_sharpe: number | null;
-  mean_max_drawdown: number;
-  worst_max_drawdown: number;
-  best_total_return: number;
-  worst_total_return: number;
-  verdict: WalkForwardVerdict;
-  verdict_reason: string;
+export interface WalkForwardWindow {
+  train_start: string;
+  train_end: string;
+  test_start: string;
+  test_end: string;
+  best_params: Record<string, number | string>;
+  train_sharpe: number;
+  test_sharpe: number;
+  test_metrics: BacktestMetrics;
 }
 
 export interface WalkForwardResponse {
   symbol: string;
   timeframe: string;
   strategy_id: string;
-  strategy_label: string;
-  params: Record<string, number | string>;
-  initial_cash: number;
-  n_windows: number;
-  period_start: string;
-  period_end: string;
-  windows: WindowResult[];
-  summary: WalkForwardSummary;
+  windows: WalkForwardWindow[];
+  aggregate_metrics: BacktestMetrics;
 }
 
 // ---------------------------------------------------------------------------
-// GA — genetic algorithm runs
-// ---------------------------------------------------------------------------
-
-export interface GaRunRequest {
-  strategy_id: string;
-  symbol: string;
-  timeframe: string;
-  period_days: number;
-  initial_cash: number;
-  population_size: number;
-  n_generations: number;
-  n_windows: number;
-  seed: number;
-  train_end_days_ago?: number;
-}
-
-export interface GaRunCreated {
-  population_id: string;
-  status: string;
-  message: string;
-}
-
-export interface GenerationSnapshotOut {
-  generation: number;
-  best_fitness: number;
-  mean_fitness: number;
-  worst_fitness: number;
-  std_fitness: number;
-  best_sharpe_robust: number;
-  best_max_dd: number;
-  diversity: number;
-  elapsed_seconds: number;
-}
-
-export interface StrategySnapshotOut {
-  chromosome: Record<string, number | string>;
-  sharpe_robust: number;
-  max_drawdown_abs: number;
-  complexity: number;
-  n_trades: number;
-  n_windows_winning: number;
-  generation: number;
-}
-
-export type GaRunStatusValue =
-  | "pending"
-  | "running"
-  | "completed"
-  | "failed";
-
-export interface GaRunStatus {
-  population_id: string;
-  strategy_id: string;
-  symbol: string;
-  timeframe: string;
-  status: GaRunStatusValue;
-  current_generation: number;
-  total_generations: number;
-  population_size: number;
-  started_at: string | null;
-  completed_at: string | null;
-  elapsed_seconds: number;
-  error: string | null;
-  generations: GenerationSnapshotOut[];
-  pareto_front: StrategySnapshotOut[];
-  top_strategies: StrategySnapshotOut[];
-}
-
-export interface GaRunSummary {
-  population_id: string;
-  strategy_id: string;
-  symbol: string;
-  timeframe: string;
-  status: GaRunStatusValue;
-  current_generation: number;
-  total_generations: number;
-  started_at: string | null;
-  best_sharpe_robust: number | null;
-}
-
-export interface GaRunsListResponse {
-  runs: GaRunSummary[];
-}
-
-// ---------------------------------------------------------------------------
-// Paper trading
-// ---------------------------------------------------------------------------
-
-export interface PaperStateResponse {
-  portfolio_id: string;
-  initial_balance: number;
-  balance_quote: number;
-  holdings: Record<string, unknown>;
-  equity: number;
-  drawdown_from_peak: number;
-  open_positions_count: number;
-  last_snapshot_at: string | null;
-  total_return_pct: number;
-  trades_total: number;
-  trades_open: number;
-  trades_closed: number;
-  trades_winning: number;
-  win_rate: number;
-  total_pnl: number;
-  status: string;
-}
-
-export interface PaperTradeOut {
-  id: string;
-  strategy_id: string | null;
-  symbol: string;
-  timeframe: string;
-  side: string;
-  status: string;
-  quantity: number;
-  entry_price: number;
-  exit_price: number | null;
-  entry_time: string;
-  exit_time: string | null;
-  fees: number;
-  pnl: number | null;
-  pnl_pct: number | null;
-}
-
-export interface PaperTradesResponse {
-  trades: PaperTradeOut[];
-  count: number;
-}
-
-export interface PaperEquityPoint {
-  timestamp: string;
-  equity: number;
-  balance_quote: number;
-  drawdown_from_peak: number;
-  open_positions_count: number;
-}
-
-export interface EquityCurveResponse {
-  portfolio_id: string;
-  points: PaperEquityPoint[];
-  count: number;
-}
-
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Regime detector
+// Regime
 // ---------------------------------------------------------------------------
 
 export interface RegimeResponse {
@@ -401,171 +212,7 @@ export interface RegimeResponse {
 }
 
 // ---------------------------------------------------------------------------
-// OOS Validation
-// ---------------------------------------------------------------------------
-
-export interface OosStrategyOut {
-  rank: number;
-  chromosome: Record<string, number | string>;
-  sharpe_train: number;
-  max_drawdown_train: number;
-  n_trades_train: number;
-  sharpe_test: number | null;
-  total_return_test: number;
-  max_drawdown_test: number;
-  n_trades_test: number;
-  win_rate_test: number | null;
-  final_equity_test: number;
-  degradation_pct: number | null;
-  alpha_vs_baseline: number | null;
-  verdict: string;
-  verdict_reason: string;
-}
-
-export interface OosBaselineOut {
-  chromosome: Record<string, number | string>;
-  sharpe_test: number | null;
-  total_return_test: number;
-  max_drawdown_test: number;
-  n_trades_test: number;
-  win_rate_test: number | null;
-  final_equity_test: number;
-}
-
-export interface OosEvolutionPoint {
-  generation: number;
-  best_sharpe_robust_train: number;
-  mean_sharpe_robust_train: number;
-  diversity: number;
-  best_sharpe_test: number | null;
-  best_total_return_test: number;
-  best_n_trades_test: number;
-}
-
-export interface OosResultResponse {
-  population_id: string;
-  strategy_id: string;
-  symbol: string;
-  timeframe: string;
-  train_start: string;
-  train_end: string;
-  test_start: string;
-  test_end: string;
-  test_days: number;
-  top_k: number;
-  initial_cash: number;
-  strategies: OosStrategyOut[];
-  evolution_curve: OosEvolutionPoint[];
-  baseline: OosBaselineOut | null;
-  overall_verdict: string;
-  overall_reason: string;
-  n_robust: number;
-  n_mixed: number;
-  n_overfit: number;
-  n_no_signal: number;
-  n_alpha_positive: number;
-}
-
-// ---------------------------------------------------------------------------
-// System (control panel)
-// ---------------------------------------------------------------------------
-
-export interface SystemSetting {
-  key: string;
-  value: Record<string, unknown>;
-  description: string | null;
-  category: string;
-  schema_hint: Record<string, string>;
-  updated_at: string | null;
-}
-
-export interface SystemSettingsList {
-  settings: SystemSetting[];
-}
-
-export interface SchedulerJob {
-  id: string;
-  name: string;
-  next_run: string | null;
-  trigger: string;
-  last_run_at: string | null;
-  last_status: string | null;
-  last_message: string | null;
-  last_duration_s: number | null;
-}
-
-export interface SchedulerJobsList {
-  jobs: SchedulerJob[];
-}
-
-export interface MaintenanceStats {
-  ohlcv: {
-    count: number;
-    oldest: string | null;
-    newest: string | null;
-  };
-  ga_postgres: {
-    populations: number;
-    generations: number;
-    strategies: number;
-    fitness_evaluations: number;
-  };
-  ga_redis: {
-    total: number;
-    by_status: Record<string, number>;
-  };
-}
-
-export type CleanupTarget =
-  | "ohlcv_old"
-  | "ga_runs_failed"
-  | "ga_runs_completed"
-  | "ga_runs_all";
-
-export interface CleanupResult {
-  target: string;
-  deleted: number;
-  dry_run: boolean;
-  details: Record<string, unknown>;
-}
-
-// ---------------------------------------------------------------------------
-// Fetch helpers
-// ---------------------------------------------------------------------------
-
-class ApiError extends Error {
-  constructor(
-    public status: number,
-    public detail: string,
-  ) {
-    super(`HTTP ${status}: ${detail}`);
-    this.name = "ApiError";
-  }
-}
-
-async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${BACKEND_URL}${path}`;
-  const res = await fetch(url, { cache: "no-store", ...init });
-  if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      const body = await res.json();
-      detail = body?.detail ?? detail;
-    } catch {
-      /* ignore */
-    }
-    throw new ApiError(res.status, detail);
-  }
-  return res.json() as Promise<T>;
-}
-
-// ---------------------------------------------------------------------------
-// Endpoints
-// ---------------------------------------------------------------------------
-
-
-// ---------------------------------------------------------------------------
-// Replay engine (Phase 6 — The Living Organism)
+// Replay (Phase 6 — The Living Organism)
 // ---------------------------------------------------------------------------
 
 export interface ReplayRunSummary {
@@ -612,8 +259,8 @@ export interface ReplayDetailResponse {
 export interface ReplayStartParams {
   name?: string;
   symbol?: string;
-  start_date: string; // ISO
-  end_date: string;   // ISO
+  start_date: string;
+  end_date: string;
   initial_cash?: number;
   retrain_cadence_days?: number;
   lookback_days?: number;
@@ -630,206 +277,157 @@ export interface AdminBackfillRequest {
   end_date?: string;
 }
 
+// ---------------------------------------------------------------------------
+// System / control
+// ---------------------------------------------------------------------------
+
+export interface SystemSetting {
+  key: string;
+  value: Record<string, unknown>;
+  description: string;
+  category: string;
+  schema_hint: Record<string, string>;
+  updated_at: string;
+}
+
+export interface SystemSettingsList {
+  settings: SystemSetting[];
+}
+
+export interface SchedulerJob {
+  id: string;
+  name: string;
+  trigger: string;
+  next_run_time: string | null;
+  last_status: string | null;
+  last_run_at: string | null;
+  last_message: string | null;
+  last_elapsed_s: number | null;
+}
+
+export interface SchedulerJobsList {
+  jobs: SchedulerJob[];
+}
+
+export interface OhlcvStats {
+  count: number;
+  oldest: string | null;
+  newest: string | null;
+}
+
+export interface MaintenanceStats {
+  ohlcv: OhlcvStats;
+}
+
+export type CleanupTarget = "ohlcv_old";
+
+export interface CleanupResult {
+  target: string;
+  deleted: number;
+  dry_run: boolean;
+  details: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// API methods
+// ---------------------------------------------------------------------------
 
 export const api = {
-  health: () => fetchJson<HealthResponse>("/health"),
+  // Markets / OHLCV
+  markets: () => fetchJson<MarketsResponse>("/api/v1/ohlcv/markets"),
 
-  markets: () => fetchJson<MarketsResponse>("/api/v1/markets"),
-
-  coverage: () => fetchJson<CoverageRow[]>("/api/v1/coverage"),
+  coverage: () =>
+    fetchJson<{ rows: CoverageRow[] }>("/api/v1/ohlcv/coverage").then(
+      (r) => r.rows,
+    ),
 
   ohlcv: (
     symbol: string,
     timeframe: string,
-    opts: {
-      start?: Date;
-      end?: Date;
-      limit?: number;
-      order?: "asc" | "desc";
-    } = {},
+    opts: { start?: string; end?: string; limit?: number; order?: "asc" | "desc" } = {},
   ) => {
-    const params = new URLSearchParams();
-    if (opts.start) params.set("start", opts.start.toISOString());
-    if (opts.end) params.set("end", opts.end.toISOString());
-    if (opts.limit) params.set("limit", String(opts.limit));
-    if (opts.order) params.set("order", opts.order);
-
-    const qs = params.toString();
-    const path = `/api/v1/ohlcv/${encodeURIComponent(symbol)}/${timeframe}${
-      qs ? `?${qs}` : ""
-    }`;
-    return fetchJson<OHLCVResponse>(path);
+    const qs = new URLSearchParams();
+    if (opts.start) qs.set("start", opts.start);
+    if (opts.end) qs.set("end", opts.end);
+    if (opts.limit) qs.set("limit", String(opts.limit));
+    if (opts.order) qs.set("order", opts.order);
+    const sym = encodeURIComponent(symbol);
+    return fetchJson<OHLCVResponse>(
+      `/api/v1/ohlcv/${sym}/${timeframe}?${qs.toString()}`,
+    );
   },
 
-  indicatorsRegistry: () =>
-    fetchJson<IndicatorsRegistryResponse>("/api/v1/indicators"),
+  // Indicators
+  indicators: () =>
+    fetchJson<{ indicators: IndicatorInfo[] }>("/api/v1/indicators").then(
+      (r) => r.indicators,
+    ),
 
-  indicator: (
+  indicatorSeries: (
     symbol: string,
     timeframe: string,
     indicator: string,
-    indicatorParams: Record<string, number | string> = {},
-    opts: { start?: Date; end?: Date; limit?: number } = {},
+    opts: { start?: string; end?: string; limit?: number; params?: Record<string, number | string> } = {},
   ) => {
-    const params = new URLSearchParams();
-    params.set("indicator", indicator);
-    if (opts.start) params.set("start", opts.start.toISOString());
-    if (opts.end) params.set("end", opts.end.toISOString());
-    if (opts.limit) params.set("limit", String(opts.limit));
-    for (const [key, value] of Object.entries(indicatorParams)) {
-      params.set(key, String(value));
+    const qs = new URLSearchParams();
+    if (opts.start) qs.set("start", opts.start);
+    if (opts.end) qs.set("end", opts.end);
+    if (opts.limit) qs.set("limit", String(opts.limit));
+    if (opts.params) {
+      for (const [k, v] of Object.entries(opts.params)) {
+        qs.set(`params[${k}]`, String(v));
+      }
     }
-    const path = `/api/v1/indicators/${encodeURIComponent(symbol)}/${timeframe}?${params.toString()}`;
-    return fetchJson<IndicatorResponse>(path);
+    const sym = encodeURIComponent(symbol);
+    return fetchJson<IndicatorResponse>(
+      `/api/v1/indicators/${sym}/${timeframe}/${indicator}?${qs.toString()}`,
+    );
   },
 
-  strategiesRegistry: () =>
-    fetchJson<StrategiesRegistryResponse>("/api/v1/strategies"),
+  // Backtest
+  strategies: () =>
+    fetchJson<{ strategies: StrategyInfo[] }>("/api/v1/backtest/strategies").then(
+      (r) => r.strategies,
+    ),
 
-  runBacktest: (req: BacktestRequest) =>
+  runBacktest: (req: {
+    symbol: string;
+    timeframe: string;
+    strategy_id: string;
+    params?: Record<string, number | string>;
+    start_date?: string;
+    end_date?: string;
+    initial_cash?: number;
+    fee?: number;
+  }) =>
     fetchJson<BacktestResponse>("/api/v1/backtest/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     }),
 
-  runWalkForward: (req: WalkForwardRequest) =>
+  runWalkForward: (req: {
+    symbol: string;
+    timeframe: string;
+    strategy_id: string;
+    n_windows: number;
+    train_days: number;
+    test_days: number;
+    start_date?: string;
+    end_date?: string;
+    initial_cash?: number;
+  }) =>
     fetchJson<WalkForwardResponse>("/api/v1/backtest/walk-forward", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     }),
 
-  startGaRun: (req: GaRunRequest) =>
-    fetchJson<GaRunCreated>("/api/v1/ga/runs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req),
-    }),
-
-  getGaRun: (populationId: string) =>
-    fetchJson<GaRunStatus>(`/api/v1/ga/runs/${populationId}`),
-
-  listGaRuns: () => fetchJson<GaRunsListResponse>("/api/v1/ga/runs"),
-
-  stopGaRun: (populationId: string) =>
-    fetchJson<{ population_id: string; status: string; message: string }>(
-      `/api/v1/ga/runs/${populationId}/stop`,
-      { method: "POST" },
-    ),
-
-  deleteGaRun: (populationId: string) =>
-    fetchJson<{ population_id: string; deleted: boolean }>(
-      `/api/v1/ga/runs/${populationId}`,
-      { method: "DELETE" },
-    ),
-
-  cleanupGaRuns: (statusFilter?: string) => {
-    const qs = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : "";
-    return fetchJson<{ deleted: number; ids: string[] }>(
-      `/api/v1/ga/runs${qs}`,
-      { method: "DELETE" },
-    );
-  },
-
-
-  // ---- Paper trading ----
-
-  paperState: (portfolioId = "paper-v1") =>
-    fetchJson<PaperStateResponse>(
-      `/api/v1/paper/state?portfolio_id=${encodeURIComponent(portfolioId)}`,
-    ),
-
-  paperTrades: (limit = 100, status?: string) => {
-    const qs = new URLSearchParams();
-    qs.set("limit", String(limit));
-    if (status) qs.set("status", status);
-    return fetchJson<PaperTradesResponse>(`/api/v1/paper/trades?${qs.toString()}`);
-  },
-
-  paperEquity: (hours = 168, maxPoints = 500, portfolioId = "paper-v1") =>
-    fetchJson<EquityCurveResponse>(
-      `/api/v1/paper/equity?portfolio_id=${encodeURIComponent(portfolioId)}&hours=${hours}&max_points=${maxPoints}`,
-    ),
-
-  paperCreateSnapshot: (portfolioId = "paper-v1") =>
-    fetchJson<{ portfolio_id: string; snapshot_at: string; equity: number; message: string }>(
-      `/api/v1/paper/snapshot?portfolio_id=${encodeURIComponent(portfolioId)}`,
-      { method: "POST" },
-    ),
-
-
-  // ---- Regime detector ----
-
+  // Regime
   regime: (symbol: string, timeframe = "1d", lookback = 120) =>
     fetchJson<RegimeResponse>(
       `/api/v1/regime/${encodeURIComponent(symbol)}?timeframe=${timeframe}&lookback_candles=${lookback}`,
     ),
-
-  // ---- OOS Validation ----
-
-  oosValidate: (
-    populationId: string,
-    opts: {
-      testDays?: number;
-      topK?: number;
-      initialCash?: number;
-      testStartDaysAgo?: number | null;
-      testEndDaysAgo?: number | null;
-    } = {},
-  ) =>
-    fetchJson<OosResultResponse>("/api/v1/oos/validate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        population_id: populationId,
-        test_days: opts.testDays ?? 90,
-        top_k: opts.topK ?? 10,
-        initial_cash: opts.initialCash ?? 10000,
-        test_start_days_ago: opts.testStartDaysAgo,
-        test_end_days_ago: opts.testEndDaysAgo,
-      }),
-    }),
-
-  // ---- System / control panel ----
-
-  systemSettings: () =>
-    fetchJson<SystemSettingsList>("/api/v1/system/settings"),
-
-  updateSystemSetting: (key: string, value: Record<string, unknown>) =>
-    fetchJson<SystemSetting>(
-      `/api/v1/system/settings/${encodeURIComponent(key)}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value }),
-      },
-    ),
-
-  systemJobs: () => fetchJson<SchedulerJobsList>("/api/v1/system/jobs"),
-
-  runSystemJob: (jobId: string) =>
-    fetchJson<{ id: string; triggered: boolean; message: string }>(
-      `/api/v1/system/jobs/${encodeURIComponent(jobId)}/run`,
-      { method: "POST" },
-    ),
-
-  maintenanceStats: () =>
-    fetchJson<MaintenanceStats>("/api/v1/system/maintenance/stats"),
-
-  cleanup: (
-    target: CleanupTarget,
-    opts: { olderThanDays?: number; confirm?: boolean } = {},
-  ) =>
-    fetchJson<CleanupResult>("/api/v1/system/maintenance/cleanup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        target,
-        older_than_days: opts.olderThanDays,
-        confirm: opts.confirm ?? false,
-      }),
-    }),
 
   // Replay
   replayList: () =>
@@ -850,9 +448,7 @@ export const api = {
       { method: "POST" },
     ),
   replayDelete: (id: string) =>
-    fetchJson<{ ok: boolean }>(`/api/v1/replay/runs/${id}`, {
-      method: "DELETE",
-    }),
+    fetchJson<{ ok: boolean }>(`/api/v1/replay/runs/${id}`, { method: "DELETE" }),
   replayDeleteAll: () =>
     fetchJson<{ ok: boolean; deleted: number }>(
       "/api/v1/replay/runs?confirm=yes",
@@ -867,6 +463,42 @@ export const api = {
         body: JSON.stringify(body),
       },
     ),
-};
 
-export { ApiError };
+  // System
+  systemSettings: () => fetchJson<SystemSettingsList>("/api/v1/system/settings"),
+
+  updateSystemSetting: (key: string, value: Record<string, unknown>) =>
+    fetchJson<SystemSetting>(
+      `/api/v1/system/settings/${encodeURIComponent(key)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value }),
+      },
+    ),
+
+  systemJobs: () => fetchJson<SchedulerJobsList>("/api/v1/system/jobs"),
+
+  runSystemJob: (jobId: string) =>
+    fetchJson<{ job_id: string; status: string }>(
+      `/api/v1/system/jobs/${encodeURIComponent(jobId)}/run`,
+      { method: "POST" },
+    ),
+
+  maintenanceStats: () =>
+    fetchJson<MaintenanceStats>("/api/v1/system/maintenance/stats"),
+
+  cleanup: (
+    target: CleanupTarget,
+    opts: { olderThanDays?: number; confirm?: boolean } = {},
+  ) =>
+    fetchJson<CleanupResult>("/api/v1/system/maintenance/cleanup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        target,
+        older_than_days: opts.olderThanDays,
+        confirm: opts.confirm ?? false,
+      }),
+    }),
+};

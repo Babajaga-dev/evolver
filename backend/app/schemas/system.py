@@ -70,22 +70,12 @@ class OhlcvStats(BaseModel):
 
 
 
-class GaPostgresCounts(BaseModel):
-    populations: int
-    generations: int
-    strategies: int
-    fitness_evaluations: int
 
 
-class GaRedisCounts(BaseModel):
-    total: int
-    by_status: dict[str, int]
 
 
 class MaintenanceStatsResponse(BaseModel):
     ohlcv: OhlcvStats
-    ga_postgres: GaPostgresCounts
-    ga_redis: GaRedisCounts
 
 
 class CleanupRequest(BaseModel):

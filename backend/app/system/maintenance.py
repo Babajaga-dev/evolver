@@ -14,7 +14,6 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
-from app.ga import state as ga_state
 from app.models.market import OHLCV
 from app.models.strategy import (
     FitnessEvaluation,
@@ -73,16 +72,6 @@ async def collect_stats(session: AsyncSession) -> dict[str, Any]:
             "oldest": ohlcv_oldest.isoformat() if ohlcv_oldest else None,
             "newest": ohlcv_newest.isoformat() if ohlcv_newest else None,
         },
-        "ga_postgres": {
-            "populations": populations_count,
-            "generations": generations_count,
-            "strategies": strategies_count,
-            "fitness_evaluations": fitness_count,
-        },
-        "ga_redis": {
-            "total": len(ga_states),
-            "by_status": ga_by_status,
-        },
     }
 
 
@@ -115,14 +104,6 @@ async def cleanup(
         return await _cleanup_ohlcv_old(
             session, older_than_days or 365, confirm=confirm
         )
-    if target == "ga_runs_failed":
-        return await _cleanup_ga_runs(session, status_filter="failed", confirm=confirm)
-    if target == "ga_runs_completed":
-        return await _cleanup_ga_runs(
-            session, status_filter="completed", confirm=confirm
-        )
-    if target == "ga_runs_all":
-        return await _cleanup_ga_runs(session, status_filter=None, confirm=confirm)
 
     raise ValueError(f"Cleanup target sconosciuto: {target}")
 
@@ -165,48 +146,3 @@ async def _cleanup_ohlcv_old(
 
 
 
-async def _cleanup_ga_runs(
-    session: AsyncSession,
-    *,
-    status_filter: str | None,
-    confirm: bool,
-) -> dict[str, Any]:
-    """Cleanup dei GA run salvati su Redis (state pickle).
-
-    Non tocca i run in pending/running per evitare disallineamento.
-    """
-    states = await ga_state.list_states(limit=500)
-    candidates = [
-        s
-        for s in states
-        if (status_filter is None or s.status == status_filter)
-        and s.status not in {"pending", "running"}
-    ]
-    target_label = (
-        f"ga_runs_{status_filter}" if status_filter else "ga_runs_all"
-    )
-
-    if not confirm:
-        return {
-            "target": target_label,
-            "deleted": 0,
-            "dry_run": True,
-            "details": {
-                "candidates": len(candidates),
-                "ids": [s.population_id for s in candidates[:20]],
-            },
-        }
-
-    deleted_ids: list[str] = []
-    for s in candidates:
-        ok = await ga_state.delete_state(s.population_id)
-        if ok:
-            deleted_ids.append(s.population_id)
-
-    log.warning("system.cleanup.ga_runs", deleted=len(deleted_ids), filter=status_filter)
-    return {
-        "target": target_label,
-        "deleted": len(deleted_ids),
-        "dry_run": False,
-        "details": {"ids": deleted_ids},
-    }

@@ -7,28 +7,15 @@ prima dell'autogenerate Alembic.
 from app.models.base import Base
 from app.models.market import OHLCV
 from app.models.funding import FundingRate
-from app.models.paper import EquitySnapshot, PaperTrade
-from app.models.strategy import (
-    FitnessEvaluation,
-    Generation,
-    Population,
-    Strategy,
-)
 from app.models.replay import ReplayEquitySnapshot, ReplayRetrainEvent, ReplayRun
 from app.models.system import SystemSetting
 
 __all__ = [
     "Base",
-    "EquitySnapshot",
-    "FitnessEvaluation",
-    "Generation",
     "FundingRate",
     "OHLCV",
-    "PaperTrade",
-    "Population",
     "ReplayEquitySnapshot",
     "ReplayRetrainEvent",
     "ReplayRun",
-    "Strategy",
     "SystemSetting",
 ]

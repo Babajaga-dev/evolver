@@ -57,21 +57,6 @@ class Settings(BaseSettings):
     # --- Redis ---
     redis_url: str = Field(default="redis://localhost:6379/0")
 
-    # --- Anthropic ---
-    anthropic_api_key: SecretStr = Field(
-        description="API key da console.anthropic.com",
-    )
-    claude_model_haiku: str = Field(
-        default="claude-haiku-4-5-20251001",
-        description="Modello Claude Haiku per inferenza rapida",
-    )
-    claude_model_opus: str = Field(
-        default="claude-opus-4-6",
-        description="Modello Claude Opus per reasoning profondo",
-    )
-    claude_max_retries: int = Field(default=3)
-    claude_timeout_s: int = Field(default=60)
-
     # --- Exchange ---
     binance_api_key: SecretStr | None = Field(default=None)  # opzionale per dati pubblici
     binance_api_secret: SecretStr | None = Field(default=None)
