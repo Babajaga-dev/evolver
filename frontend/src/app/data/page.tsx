@@ -60,7 +60,7 @@ export default function DataPage() {
         const [m, c, r] = await Promise.all([
           api.markets(),
           api.coverage(),
-          api.indicatorsRegistry(),
+          api.indicators(),
         ]);
         if (!cancelled) {
           setMarkets(m);

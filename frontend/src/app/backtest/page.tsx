@@ -81,7 +81,7 @@ export default function BacktestPage() {
       try {
         const [m, s] = await Promise.all([
           api.markets(),
-          api.strategiesRegistry(),
+          api.strategies(),
         ]);
         if (!cancelled) {
           setMarkets(m);

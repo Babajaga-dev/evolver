@@ -344,11 +344,15 @@ export const api = {
   ohlcv: (
     symbol: string,
     timeframe: string,
-    opts: { start?: string; end?: string; limit?: number; order?: "asc" | "desc" } = {},
+    opts: { start?: string | Date; end?: string | Date; limit?: number; order?: "asc" | "desc" } = {},
   ) => {
     const qs = new URLSearchParams();
-    if (opts.start) qs.set("start", opts.start);
-    if (opts.end) qs.set("end", opts.end);
+    const toIso = (v: string | Date | undefined) =>
+      v === undefined ? undefined : (v instanceof Date ? v.toISOString() : v);
+    const s = toIso(opts.start);
+    const e = toIso(opts.end);
+    if (s) qs.set("start", s);
+    if (e) qs.set("end", e);
     if (opts.limit) qs.set("limit", String(opts.limit));
     if (opts.order) qs.set("order", opts.order);
     const sym = encodeURIComponent(symbol);
@@ -363,18 +367,23 @@ export const api = {
       (r) => r.indicators,
     ),
 
-  indicatorSeries: (
+  indicator: (
     symbol: string,
     timeframe: string,
     indicator: string,
-    opts: { start?: string; end?: string; limit?: number; params?: Record<string, number | string> } = {},
+    params: Record<string, number | string> | null | undefined,
+    opts: { start?: string | Date; end?: string | Date; limit?: number } = {},
   ) => {
     const qs = new URLSearchParams();
-    if (opts.start) qs.set("start", opts.start);
-    if (opts.end) qs.set("end", opts.end);
+    const toIso = (v: string | Date | undefined) =>
+      v === undefined ? undefined : (v instanceof Date ? v.toISOString() : v);
+    const s = toIso(opts.start);
+    const e = toIso(opts.end);
+    if (s) qs.set("start", s);
+    if (e) qs.set("end", e);
     if (opts.limit) qs.set("limit", String(opts.limit));
-    if (opts.params) {
-      for (const [k, v] of Object.entries(opts.params)) {
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
         qs.set(`params[${k}]`, String(v));
       }
     }
