@@ -6,6 +6,7 @@ prima dell'autogenerate Alembic.
 
 from app.models.base import Base
 from app.models.market import OHLCV
+from app.models.funding import FundingRate
 from app.models.paper import EquitySnapshot, PaperTrade
 from app.models.strategy import (
     FitnessEvaluation,
@@ -21,6 +22,7 @@ __all__ = [
     "EquitySnapshot",
     "FitnessEvaluation",
     "Generation",
+    "FundingRate",
     "OHLCV",
     "PaperTrade",
     "Population",

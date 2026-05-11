@@ -611,6 +611,7 @@ function SummaryCard({ summary }: { summary: ReplayRunSummary }) {
   const alphaBH = typeof fm["alpha_vs_buy_hold"] === "number" ? (fm["alpha_vs_buy_hold"] as number) : null;
   const alphaTB = typeof fm["alpha_vs_textbook"] === "number" ? (fm["alpha_vs_textbook"] as number) : null;
   const alphaGOS = typeof fm["alpha_vs_ga_one_shot"] === "number" ? (fm["alpha_vs_ga_one_shot"] as number) : null;
+  const dsr = fm["deflated_sharpe"] as Record<string, number | string> | undefined;
   return (
     <section
       className="border bg-[--color-surface-card] p-4"
@@ -684,6 +685,22 @@ function SummaryCard({ summary }: { summary: ReplayRunSummary }) {
             value={typeof fm["final_equity"] === "number" ? `$${(fm["final_equity"] as number).toFixed(0)}` : "—"}
           />
         </div>
+        {dsr && (
+          <div className="mt-4 border p-3" style={{ borderColor: "var(--color-gold)", borderStyle: "dashed" }}>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-[--color-gold]" style={{ fontFamily: "var(--font-serif)" }}>
+              · DEFLATED SHARPE RATIO · BAILEY &amp; LÓPEZ DE PRADO ·
+            </p>
+            <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-3" style={{ fontFamily: "var(--font-mono)" }}>
+              <DsrCell label="DSR" value={typeof dsr.dsr === "number" ? (dsr.dsr as number).toFixed(3) : "—"} verdict={dsr.verdict as string} />
+              <DsrCell label="PSR" value={typeof dsr.psr === "number" ? (dsr.psr as number).toFixed(3) : "—"} />
+              <DsrCell label="SR threshold" value={typeof dsr.sr_threshold === "number" ? (dsr.sr_threshold as number).toFixed(3) : "—"} />
+              <DsrCell label="N trials" value={typeof dsr.n_trials === "number" ? String(dsr.n_trials) : "—"} />
+            </div>
+            <p className="mt-2 text-[10px] text-[--color-text-muted]" style={{ fontFamily: "var(--font-body)" }}>
+              DSR &lt; 0.50 = falso positivo · 0.50-0.80 = marginale · 0.80-0.95 = significativo · &gt; 0.95 = altamente significativo. Corregge per multiple testing (N trial) e non-normalità (skew/kurtosis).
+            </p>
+          </div>
+        )}
 
         {/* Baselines comparison */}
         {(bh || tb || gos) && (
@@ -751,6 +768,25 @@ function SummaryCard({ summary }: { summary: ReplayRunSummary }) {
         </>
       )}
     </section>
+  );
+}
+
+function DsrCell({ label, value, verdict }: { label: string; value: string; verdict?: string }) {
+  const color = !verdict ? "var(--color-text-primary)" :
+    verdict === "highly_significant" ? "#00ff99" :
+    verdict === "significant" ? "var(--color-gold)" :
+    verdict === "marginal" ? "var(--color-btc-orange)" :
+    "var(--color-crimson)";
+  return (
+    <div className="border bg-[--color-surface-elevated] px-2 py-1.5" style={{ borderColor: "var(--color-surface-border)" }}>
+      <p className="text-[9px] uppercase tracking-[0.2em] text-[--color-text-secondary]" style={{ fontFamily: "var(--font-serif)" }}>{label}</p>
+      <p style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 700, color }}>{value}</p>
+      {verdict && (
+        <p className="text-[9px] uppercase tracking-[0.15em]" style={{ color, fontFamily: "var(--font-serif)", marginTop: 2 }}>
+          {verdict.replace("_", " ")}
+        </p>
+      )}
+    </div>
   );
 }
 

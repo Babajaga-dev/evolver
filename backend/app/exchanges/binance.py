@@ -119,6 +119,93 @@ class BinanceConnector:
                 return klines  # type: ignore[no-any-return]
         return []  # unreachable, ma soddisfa mypy
 
+    async def fetch_funding_rate_chunk(
+        self,
+        symbol: str,
+        *,
+        since_ms: int,
+        limit: int = 1000,
+    ) -> list[dict]:
+        """Fetch funding rate batch da Binance USDS-M perpetual via ccxt.
+
+        ccxt: fetch_funding_rate_history(symbol, since, limit, params).
+        Symbol format: "BTC/USDT:USDT" per perp swap.
+        """
+        # Convert spot symbol to perp swap symbol
+        swap_symbol = symbol if ":USDT" in symbol else f"{symbol}:USDT"
+        # Force defaultType=swap
+        original_type = self.exchange.options.get("defaultType")
+        self.exchange.options["defaultType"] = "swap"
+        try:
+            async for attempt in AsyncRetrying(
+                stop=stop_after_attempt(5),
+                wait=wait_exponential(multiplier=1, min=1, max=30),
+                retry=retry_if_exception_type((ccxt.NetworkError, ccxt.ExchangeError)),
+            ):
+                with attempt:
+                    raw = await self.exchange.fetch_funding_rate_history(
+                        swap_symbol, since=since_ms, limit=limit,
+                    )
+                    return raw
+        finally:
+            if original_type is not None:
+                self.exchange.options["defaultType"] = original_type
+        return []
+
+    async def backfill_funding_rates(
+        self,
+        session: AsyncSession,
+        symbol: str,
+        start: datetime,
+        end: datetime | None = None,
+        *,
+        sleep_between_chunks_s: float = 0.3,
+    ) -> int:
+        """Backfill funding rate storico per un symbol Binance perpetual."""
+        from app.repositories import funding as funding_repo
+        if end is None:
+            end = datetime.now(timezone.utc)
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=timezone.utc)
+
+        cursor_ms = int(start.timestamp() * 1000)
+        end_ms = int(end.timestamp() * 1000)
+        total_inserted = 0
+        FUNDING_INTERVAL_MS = 8 * 3600 * 1000  # 8h
+
+        log.info("backfill.funding.start", symbol=symbol, start=start.isoformat(), end=end.isoformat())
+        while cursor_ms < end_ms:
+            batch = await self.fetch_funding_rate_chunk(
+                symbol=symbol, since_ms=cursor_ms, limit=1000,
+            )
+            if not batch:
+                log.info("backfill.funding.empty", symbol=symbol, cursor_ms=cursor_ms)
+                break
+            rows = []
+            for item in batch:
+                ts = item.get("timestamp") or 0
+                if ts >= end_ms:
+                    continue
+                rows.append({
+                    "symbol": symbol,
+                    "funding_time": datetime.fromtimestamp(ts / 1000, tz=timezone.utc),
+                    "funding_rate": float(item.get("fundingRate") or 0.0),
+                    "mark_price": float(item.get("markPrice")) if item.get("markPrice") else None,
+                })
+            if not rows:
+                break
+            n = await funding_repo.upsert_funding(session, rows=rows)
+            total_inserted += n
+            # Advance cursor to last funding_time + 1 step
+            last_ts = batch[-1].get("timestamp") or cursor_ms
+            cursor_ms = last_ts + FUNDING_INTERVAL_MS
+            if sleep_between_chunks_s > 0:
+                await asyncio.sleep(sleep_between_chunks_s)
+        log.info("backfill.funding.done", symbol=symbol, inserted=total_inserted)
+        return total_inserted
+
     async def backfill_ohlcv(
         self,
         session: AsyncSession,

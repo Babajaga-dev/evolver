@@ -30,7 +30,7 @@ import pandas as pd
 from app.indicators.core import compute as compute_indicator
 
 
-INDICATORS = ("rsi", "macd", "bb_breakout", "ema_cross")
+INDICATORS = ("rsi", "macd", "bb_breakout", "ema_cross", "funding")
 TIMEFRAMES = ("1h", "4h", "1d")
 REGIMES = ("trend_bullish", "trend_bearish", "trend_mixed", "range_low_vol",
            "range_high_vol", "range", "transition")
@@ -49,6 +49,7 @@ class VoterParams:
     bb_std: float = 2.0
     ema_fast: int = 12
     ema_slow: int = 26
+    funding_threshold: float = 0.0005  # 0.05% per 8h
 
 
 def _vote_rsi(df: pd.DataFrame, p: VoterParams) -> pd.Series:
@@ -94,11 +95,32 @@ def _vote_ema(df: pd.DataFrame, p: VoterParams) -> pd.Series:
     return s.fillna(0.0)
 
 
+def _vote_funding(df: pd.DataFrame, p: VoterParams) -> pd.Series:
+    """Funding rate voter. Special case: il signal viene injected via
+    df.attrs['funding_rate'] o un campo 'funding_rate' nel df.
+
+    Logica: funding positivo > +0.05%/8h = perps overbought (bearish, sell signal)
+            funding negativo < -0.05%/8h = perps oversold (bullish, buy signal)
+            altrimenti neutral
+
+    Soglia p.funding_threshold parametrica nel genoma.
+    """
+    if "funding_rate" not in df.columns:
+        return pd.Series(0.0, index=df.index)
+    fr = df["funding_rate"]
+    threshold = getattr(p, "funding_threshold", 0.0005)  # +0.05% default
+    s = pd.Series(0.0, index=df.index)
+    s[fr < -threshold] = 1.0
+    s[fr > threshold] = -1.0
+    return s.fillna(0.0)
+
+
 VOTER_FNS = {
     "rsi": _vote_rsi,
     "macd": _vote_macd,
     "bb_breakout": _vote_bb,
     "ema_cross": _vote_ema,
+    "funding": _vote_funding,
 }
 
 
@@ -132,13 +154,13 @@ def default_council_params() -> CouncilParams:
             voters[f"{ind}_{tf}"] = VoterParams()
     # Pesi default: in trend, MACD+EMA pesano 70%; in range, RSI+BB pesano 70%
     weights = {
-        "trend_bullish":   {"rsi": 0.10, "macd": 0.40, "bb_breakout": 0.10, "ema_cross": 0.40},
-        "trend_bearish":   {"rsi": 0.10, "macd": 0.40, "bb_breakout": 0.10, "ema_cross": 0.40},
-        "trend_mixed":     {"rsi": 0.25, "macd": 0.25, "bb_breakout": 0.25, "ema_cross": 0.25},
-        "range_low_vol":   {"rsi": 0.40, "macd": 0.10, "bb_breakout": 0.40, "ema_cross": 0.10},
-        "range_high_vol":  {"rsi": 0.30, "macd": 0.10, "bb_breakout": 0.50, "ema_cross": 0.10},
-        "range":           {"rsi": 0.35, "macd": 0.10, "bb_breakout": 0.45, "ema_cross": 0.10},
-        "transition":      {"rsi": 0.0,  "macd": 0.0,  "bb_breakout": 0.0,  "ema_cross": 0.0},  # cash
+        "trend_bullish":   {"rsi": 0.10, "macd": 0.35, "bb_breakout": 0.10, "ema_cross": 0.35, "funding": 0.10},
+        "trend_bearish":   {"rsi": 0.10, "macd": 0.35, "bb_breakout": 0.10, "ema_cross": 0.35, "funding": 0.10},
+        "trend_mixed":     {"rsi": 0.20, "macd": 0.20, "bb_breakout": 0.20, "ema_cross": 0.20, "funding": 0.20},
+        "range_low_vol":   {"rsi": 0.35, "macd": 0.10, "bb_breakout": 0.35, "ema_cross": 0.10, "funding": 0.10},
+        "range_high_vol":  {"rsi": 0.25, "macd": 0.10, "bb_breakout": 0.40, "ema_cross": 0.10, "funding": 0.15},
+        "range":           {"rsi": 0.30, "macd": 0.10, "bb_breakout": 0.35, "ema_cross": 0.10, "funding": 0.15},
+        "transition":      {"rsi": 0.0,  "macd": 0.0,  "bb_breakout": 0.0,  "ema_cross": 0.0,  "funding": 0.0},
     }
     return CouncilParams(voters=voters, weights=weights, position_size_pct=50.0)
 

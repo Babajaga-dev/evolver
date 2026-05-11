@@ -164,6 +164,7 @@ async def _backfill_job(req: AdminBackfillRequest) -> None:
     log.info("admin.backfill.start", symbols=req.symbols, tfs=req.timeframes,
              start=req.start_date.isoformat(), end=end.isoformat())
     async with BinanceConnector() as conn:
+        # 1. OHLCV
         for sym in req.symbols:
             for tf in req.timeframes:
                 try:
@@ -172,9 +173,19 @@ async def _backfill_job(req: AdminBackfillRequest) -> None:
                             session=s, symbol=sym, timeframe=tf,
                             start=req.start_date, end=end,
                         )
-                    log.info("admin.backfill.done", symbol=sym, tf=tf, inserted=n)
+                    log.info("admin.backfill.ohlcv.done", symbol=sym, tf=tf, inserted=n)
                 except Exception as exc:
-                    log.exception("admin.backfill.failed", symbol=sym, tf=tf, error=str(exc))
+                    log.exception("admin.backfill.ohlcv.failed", symbol=sym, tf=tf, error=str(exc))
+        # 2. Funding rates (perpetual)
+        for sym in req.symbols:
+            try:
+                async with session_scope() as s:
+                    n = await conn.backfill_funding_rates(
+                        session=s, symbol=sym, start=req.start_date, end=end,
+                    )
+                log.info("admin.backfill.funding.done", symbol=sym, inserted=n)
+            except Exception as exc:
+                log.exception("admin.backfill.funding.failed", symbol=sym, error=str(exc))
     log.info("admin.backfill.complete")
 
 

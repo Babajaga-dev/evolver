@@ -37,6 +37,7 @@ GENOME_SPEC: list[tuple[str, str, float, float]] = [
     ("bb_std",          "float", 1.5,  3.0),
     ("ema_fast",        "int",   5.0,  30.0),
     ("ema_slow",        "int",   20.0, 100.0),
+    ("funding_threshold","float",0.0001,0.0030),  # 0.01% - 0.30% per 8h
     # position size
     ("position_size_pct", "float", 10.0, 80.0),
 ]
@@ -71,6 +72,7 @@ def decode_to_council(x: dict[str, Any]) -> CouncilParams:
         bb_std=float(x.get("bb_std", 2.0)),
         ema_fast=int(x.get("ema_fast", 12)),
         ema_slow=int(x.get("ema_slow", 26)),
+        funding_threshold=float(x.get("funding_threshold", 0.0005)),
     )
     # Replicato sui 3 timeframe
     voters = {}
@@ -108,6 +110,7 @@ def encode_from_council(c: CouncilParams) -> dict[str, Any]:
         "bb_std": v.bb_std,
         "ema_fast": v.ema_fast,
         "ema_slow": v.ema_slow,
+        "funding_threshold": v.funding_threshold,
         "position_size_pct": c.position_size_pct,
     }
     for r in REGIMES:

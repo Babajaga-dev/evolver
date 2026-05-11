@@ -62,6 +62,37 @@ class ReplayConfig:
     slippage_bps: float = 5.0
 
 
+async def _fetch_funding_window(
+    session, symbol: str, start: datetime, end: datetime
+) -> pd.DataFrame:
+    """Fetch funding rates. Returns df with funding_time index and funding_rate column.
+
+    Funding viene da Binance USDS-M perpetual ogni 8h. Lo allineiamo
+    forward-fill su candele 4h con merge.
+    """
+    from app.repositories import funding as funding_repo
+    rows = await funding_repo.fetch_funding(session, symbol=symbol, start=start, end=end, limit=50000)
+    if not rows:
+        return pd.DataFrame()
+    return pd.DataFrame([
+        {"timestamp": r.funding_time, "funding_rate": float(r.funding_rate)} for r in rows
+    ]).set_index("timestamp")
+
+
+def _attach_funding_to_ohlcv(df_ohlcv: pd.DataFrame, df_funding: pd.DataFrame) -> pd.DataFrame:
+    """Merge funding rate (8h freq) su candele 4h con forward-fill."""
+    if df_funding is None or df_funding.empty or df_ohlcv is None or df_ohlcv.empty:
+        out = df_ohlcv.copy() if df_ohlcv is not None else pd.DataFrame()
+        if not out.empty:
+            out["funding_rate"] = 0.0
+        return out
+    # Reindex funding on OHLCV index with forward-fill
+    funding_aligned = df_funding["funding_rate"].reindex(df_ohlcv.index, method="ffill").fillna(0.0)
+    out = df_ohlcv.copy()
+    out["funding_rate"] = funding_aligned
+    return out
+
+
 async def _fetch_ohlcv_window(
     session, symbol: str, tf: str, start: datetime, end: datetime
 ) -> pd.DataFrame:
@@ -311,6 +342,9 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
                     df_1d_train = await _fetch_ohlcv_window(
                         s, cfg.symbol, "1d", train_start, cursor
                     )
+                    df_fund_train = await _fetch_funding_window(s, cfg.symbol, train_start, cursor)
+                # Attach funding to training 4h
+                df_4h_train = _attach_funding_to_ohlcv(df_4h_train, df_fund_train)
 
                 if len(df_4h_train) < 50:
                     # Non c'è abbastanza dato, salta al prossimo bar e riprova
@@ -372,6 +406,9 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
                 df_4h_chunk = await _fetch_ohlcv_window(s, cfg.symbol, "4h", warmup_start, chunk_end)
                 df_1h_chunk = await _fetch_ohlcv_window(s, cfg.symbol, "1h", warmup_start, chunk_end)
                 df_1d_chunk = await _fetch_ohlcv_window(s, cfg.symbol, "1d", warmup_start - timedelta(days=40), chunk_end)
+                df_funding = await _fetch_funding_window(s, cfg.symbol, warmup_start, chunk_end)
+            # Merge funding rate into 4h dataframe (forward-fill 8h → 4h)
+            df_4h_chunk = _attach_funding_to_ohlcv(df_4h_chunk, df_funding)
 
             if df_4h_chunk is None or df_4h_chunk.empty or len(df_4h_chunk) < 10:
                 cursor = chunk_end
@@ -478,6 +515,8 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
             df_full = await _fetch_ohlcv_window(s, cfg.symbol, "4h", cfg.start_date, cfg.end_date)
             df_1h_full = await _fetch_ohlcv_window(s, cfg.symbol, "1h", cfg.start_date, cfg.end_date)
             df_1d_full = await _fetch_ohlcv_window(s, cfg.symbol, "1d", cfg.start_date - timedelta(days=40), cfg.end_date)
+            df_fund_full = await _fetch_funding_window(s, cfg.symbol, cfg.start_date, cfg.end_date)
+        df_full = _attach_funding_to_ohlcv(df_full, df_fund_full)
         if not df_full.empty:
             bh_ret = (df_full["close"].iloc[-1] / df_full["close"].iloc[0]) - 1.0
             bh_equity = df_full["close"] / df_full["close"].iloc[0] * cfg.initial_cash
@@ -559,6 +598,19 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
         alpha_textbook = float(sharpe - textbook_metrics["sharpe"])
         alpha_gaoneshot = float(sharpe - gaoneshot_metrics["sharpe"])
 
+        # Deflated Sharpe Ratio (Bailey & Lopez de Prado SSRN 2460551)
+        n_trials_total = max(int(run.n_retrains * cfg.ga_pop_size * cfg.ga_generations), 2)
+        try:
+            from app.metrics.deflated_sharpe import deflated_sharpe_ratio
+            dsr_info = deflated_sharpe_ratio(
+                observed_sharpe=float(sharpe),
+                returns=returns,
+                n_trials=n_trials_total,
+            )
+        except Exception as exc:
+            log.warning("replay.dsr_failed", error=str(exc))
+            dsr_info = {"dsr": 0.5, "verdict": "computation_error"}
+
         final_metrics = {
             "sharpe": float(sharpe),
             "total_return": float(total_return),
@@ -577,6 +629,7 @@ async def run_replay_task(run_id: uuid.UUID) -> None:
             "alpha_vs_buy_hold": alpha_bh,
             "alpha_vs_textbook": alpha_textbook,
             "alpha_vs_ga_one_shot": alpha_gaoneshot,
+            "deflated_sharpe": dsr_info,
         }
         async with session_scope() as s:
             await replay_repo.set_final_metrics(s, run_id, final_metrics=final_metrics)
