@@ -47,8 +47,6 @@ def test_models_register_metadata() -> None:
     table_names = set(Base.metadata.tables.keys())
     expected = {
         "ohlcv",
-        "news_raw",
-        "news_scored",
         "populations",
         "generations",
         "strategies",

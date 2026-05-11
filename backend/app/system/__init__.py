@@ -3,7 +3,7 @@
 Pipeline:
     settings.py     repository + default settings + tipi
     scheduler.py    AsyncIOScheduler integrato in FastAPI lifespan
-    maintenance.py  cleanup DB (OHLCV, news, GA runs) + stats
+    maintenance.py  cleanup DB (OHLCV, GA runs) + stats
 """
 
 from app.system.settings import (

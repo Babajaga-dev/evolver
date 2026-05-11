@@ -2,7 +2,7 @@
 
 Architettura:
     - AsyncIOScheduler avviato al boot, fermato a shutdown
-    - Job registrati con id costante (es. "news.auto_refresh")
+    - Job registrati con id costante (es. "ohlcv.auto_backfill")
     - Trigger IntervalTrigger configurato dai DEFAULT_SETTINGS
     - Ogni job legge il flag ``enabled`` dal DB PRIMA di eseguire — così
       togglare il flag prende effetto al prossimo tick (no restart)
@@ -110,20 +110,6 @@ def _register_jobs(sched: AsyncIOScheduler) -> None:
     """Registra i job 'automation' con interval default. Il flag enabled
     viene riletto ad ogni tick — quindi il job può essere registrato ma no-op."""
 
-    sched.add_job(
-        _job_news_auto_refresh,
-        trigger=IntervalTrigger(seconds=300),
-        id="news.auto_refresh",
-        name="News auto refresh (RSS fetch + ingest)",
-        replace_existing=True,
-    )
-    sched.add_job(
-        _job_news_auto_score,
-        trigger=IntervalTrigger(seconds=600),
-        id="news.auto_score",
-        name="News auto score (Claude Haiku batch)",
-        replace_existing=True,
-    )
     sched.add_job(
         _job_ohlcv_auto_backfill,
         trigger=IntervalTrigger(seconds=3600),

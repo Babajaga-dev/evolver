@@ -27,7 +27,7 @@ export default function RegimePage() {
               Detector di regime macro su candele 1d. Distinguere
               trend (ADX&gt;25) da range (ADX&lt;20), con bias direzionale
               dalla SMA(50) slope. I valori guidano GA fitness, paper
-              engine sizing, postmortem cross-validation.
+              engine sizing, validation cross-regime.
             </p>
           </div>
           <a

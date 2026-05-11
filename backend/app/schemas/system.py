@@ -69,11 +69,6 @@ class OhlcvStats(BaseModel):
     newest: str | None = None
 
 
-class NewsCounts(BaseModel):
-    raw: int
-    scored: int
-    pending: int
-
 
 class GaPostgresCounts(BaseModel):
     populations: int
@@ -89,7 +84,6 @@ class GaRedisCounts(BaseModel):
 
 class MaintenanceStatsResponse(BaseModel):
     ohlcv: OhlcvStats
-    news: NewsCounts
     ga_postgres: GaPostgresCounts
     ga_redis: GaRedisCounts
 

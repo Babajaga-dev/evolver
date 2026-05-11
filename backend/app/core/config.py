@@ -63,11 +63,11 @@ class Settings(BaseSettings):
     )
     claude_model_haiku: str = Field(
         default="claude-haiku-4-5-20251001",
-        description="Modello per news classification ad alto volume",
+        description="Modello Claude Haiku per inferenza rapida",
     )
     claude_model_opus: str = Field(
         default="claude-opus-4-6",
-        description="Modello per postmortem settimanale e reasoning profondo",
+        description="Modello Claude Opus per reasoning profondo",
     )
     claude_max_retries: int = Field(default=3)
     claude_timeout_s: int = Field(default=60)
@@ -93,7 +93,6 @@ class Settings(BaseSettings):
 
     # --- News ---
     cryptopanic_api_key: SecretStr | None = Field(default=None)
-    news_poll_interval_s: int = Field(default=300)  # 5 min
 
     @field_validator("api_cors_origins", "symbols", "timeframes", mode="before")
     @classmethod

@@ -20,8 +20,7 @@ class SystemSetting(Base):
     """Key-value store per feature flags e parametri runtime.
 
     Esempi di key:
-        - "news.auto_refresh"  → {"enabled": false, "interval_seconds": 300}
-        - "news.auto_score"    → {"enabled": false, "interval_seconds": 600,
+        - "ohlcv.auto_backfill" → {"enabled": false, "interval_seconds": 3600}
                                   "batch_limit": 20}
         - "ga.auto_run"        → {"enabled": false}
 

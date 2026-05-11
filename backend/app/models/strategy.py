@@ -93,7 +93,7 @@ class Strategy(Base):
           "stop_atr_mult": 2.0,
           "tp_atr_mult": 3.5,
           "position_size_pct": 1.5,
-          "news_sensitivity": 0.6,
+          "funding_sensitivity": 0.6,
           "regime_filter": ["bull", "range"]
         }
     """

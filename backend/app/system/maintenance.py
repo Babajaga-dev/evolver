@@ -73,7 +73,6 @@ async def collect_stats(session: AsyncSession) -> dict[str, Any]:
             "oldest": ohlcv_oldest.isoformat() if ohlcv_oldest else None,
             "newest": ohlcv_newest.isoformat() if ohlcv_newest else None,
         },
-        "news": {"raw": 0, "scored": 0, "pending": 0},
         "ga_postgres": {
             "populations": populations_count,
             "generations": generations_count,
@@ -105,7 +104,7 @@ async def cleanup(
         session: AsyncSession (caller gestisce commit).
         target: cosa pulire (vedi ``CleanupTarget``).
         older_than_days: soglia per cleanup time-based (ohlcv_old).
-                         Se None, default sicuri (365d ohlcv, 30d news).
+                         Se None, default sicuro (365d ohlcv).
         confirm: deve essere ``True`` per eseguire la delete. Senza, dry-run
                  che ritorna solo la count di righe candidate.
 

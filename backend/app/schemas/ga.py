@@ -20,7 +20,7 @@ class GaRunRequest(BaseModel):
     period_days: int = Field(default=365, ge=90, le=365 * 5)
     initial_cash: float = Field(default=10_000.0, gt=0)
     # population_size minimo 20: con popolazioni piccole NSGA-II perde
-    # diversity rapidamente (postmortem 2026-05-09 ha rilevato collapse
+    # diversity rapidamente (audit 2026-05-09 ha rilevato collapse
     # su rsi_period=9 con pop=30, gen=15)
     population_size: int = Field(default=40, ge=20, le=200)
     # n_generations >= 5: con <5 il GA è praticamente solo random sampling

@@ -58,7 +58,7 @@ class PaperTrade(Base):
     stop_loss: Mapped[Decimal | None] = mapped_column(Numeric(20, 8))
     take_profit: Mapped[Decimal | None] = mapped_column(Numeric(20, 8))
 
-    # Snapshot dei segnali al momento dell'apertura/chiusura — utile per postmortem
+    # Snapshot dei segnali al momento dell'apertura/chiusura — utile per analisi
     open_context: Mapped[dict | None] = mapped_column(JSONB)
     close_context: Mapped[dict | None] = mapped_column(JSONB)
 
