@@ -15,22 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.market import OHLCV
-from app.models.strategy import (
-    FitnessEvaluation,
-    Generation,
-    Population,
-    Strategy,
-)
-
 log = get_logger(__name__)
 
 
-CleanupTarget = Literal[
-    "ohlcv_old",
-    "ga_runs_failed",
-    "ga_runs_completed",
-    "ga_runs_all",
-]
+CleanupTarget = Literal["ohlcv_old"]
 
 
 # ---------------------------------------------------------------------------
@@ -49,22 +37,12 @@ async def collect_stats(session: AsyncSession) -> dict[str, Any]:
         return int(q.scalar_one())
 
     ohlcv_count = await _count(OHLCV)
-    populations_count = await _count(Population)
-    generations_count = await _count(Generation)
-    strategies_count = await _count(Strategy)
-    fitness_count = await _count(FitnessEvaluation)
 
     # OHLCV: oldest / newest per dare un'idea dell'estensione storica
     oldest_q = await session.execute(select(func.min(OHLCV.timestamp)))
     newest_q = await session.execute(select(func.max(OHLCV.timestamp)))
     ohlcv_oldest = oldest_q.scalar()
     ohlcv_newest = newest_q.scalar()
-
-    # GA runs Redis
-    ga_states = await ga_state.list_states(limit=500)
-    ga_by_status: dict[str, int] = {}
-    for s in ga_states:
-        ga_by_status[s.status] = ga_by_status.get(s.status, 0) + 1
 
     return {
         "ohlcv": {
