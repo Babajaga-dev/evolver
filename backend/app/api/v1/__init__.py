@@ -6,16 +6,14 @@ Convenzione: ogni router è in un file separato e viene aggregato in
 
 from fastapi import APIRouter
 
-from app.api.v1 import backtest, indicators, live, ohlcv, oos, paper, regime, replay, system
+from app.api.v1 import backtest, carry, indicators, live, ohlcv, regime, replay, system
 
 router_v1 = APIRouter(prefix="/api/v1")
 router_v1.include_router(ohlcv.router)
 router_v1.include_router(indicators.router)
 router_v1.include_router(backtest.router)
 router_v1.include_router(carry.router)
-router_v1.include_router(paper.router)
 router_v1.include_router(regime.router)
 router_v1.include_router(live.router)
-router_v1.include_router(oos.router)
 router_v1.include_router(replay.router)
 router_v1.include_router(system.router)
