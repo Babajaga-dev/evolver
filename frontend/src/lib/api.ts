@@ -132,11 +132,11 @@ export interface StrategyInfo {
 
 export interface TradeRecord {
   entry_time: string;
-  exit_time: string;
-  side: string;
+  exit_time: string | null;
   entry_price: number;
-  exit_price: number;
+  exit_price: number | null;
   size: number;
+  direction: string;
   pnl: number;
   pnl_pct: number;
 }
@@ -149,12 +149,14 @@ export interface EquityPoint {
 
 export interface BacktestMetrics {
   total_return: number;
-  sharpe: number;
+  sharpe: number | null;
+  sortino: number | null;
+  calmar: number | null;
   max_drawdown: number;
-  n_trades: number;
   win_rate: number | null;
-  avg_win: number | null;
-  avg_loss: number | null;
+  profit_factor: number | null;
+  n_trades: number;
+  avg_trade_pct: number | null;
   final_equity: number;
 }
 
@@ -162,31 +164,64 @@ export interface BacktestResponse {
   symbol: string;
   timeframe: string;
   strategy_id: string;
+  strategy_label: string;
   params: Record<string, number | string>;
   initial_cash: number;
   fee: number;
-  metrics: BacktestMetrics;
-  equity: EquityPoint[];
+  slippage: number;
+  start: string;
+  end: string;
+  equity_curve: EquityPoint[];
   trades: TradeRecord[];
+  metrics: BacktestMetrics;
 }
 
+export type WalkForwardVerdict = "robust" | "mixed" | "unstable" | "no_signal";
+
 export interface WalkForwardWindow {
-  train_start: string;
-  train_end: string;
-  test_start: string;
-  test_end: string;
-  best_params: Record<string, number | string>;
-  train_sharpe: number;
-  test_sharpe: number;
-  test_metrics: BacktestMetrics;
+  window_index: number;
+  window_start: string;
+  window_end: string;
+  n_candles: number;
+  n_trades: number;
+  total_return: number;
+  sharpe: number | null;
+  calmar: number | null;
+  max_drawdown: number;
+  win_rate: number | null;
+  final_equity: number;
+}
+
+export type WindowResult = WalkForwardWindow;
+
+export interface WalkForwardSummary {
+  n_windows: number;
+  n_windows_winning: number;
+  n_windows_with_trades: number;
+  mean_total_return: number;
+  std_total_return: number;
+  mean_sharpe: number | null;
+  std_sharpe: number | null;
+  mean_max_drawdown: number;
+  worst_max_drawdown: number;
+  best_total_return: number;
+  worst_total_return: number;
+  verdict: string;
+  verdict_reason: string;
 }
 
 export interface WalkForwardResponse {
   symbol: string;
   timeframe: string;
   strategy_id: string;
+  strategy_label: string;
+  params: Record<string, number | string>;
+  initial_cash: number;
+  n_windows: number;
+  period_start: string;
+  period_end: string;
   windows: WalkForwardWindow[];
-  aggregate_metrics: BacktestMetrics;
+  summary: WalkForwardSummary;
 }
 
 // ---------------------------------------------------------------------------
@@ -392,10 +427,8 @@ export const api = {
     timeframe: string;
     strategy_id: string;
     params?: Record<string, number | string>;
-    start_date?: string;
-    end_date?: string;
+    period_days?: number;
     initial_cash?: number;
-    fee?: number;
   }) =>
     fetchJson<BacktestResponse>("/api/v1/backtest/run", {
       method: "POST",
@@ -407,12 +440,10 @@ export const api = {
     symbol: string;
     timeframe: string;
     strategy_id: string;
-    n_windows: number;
-    train_days: number;
-    test_days: number;
-    start_date?: string;
-    end_date?: string;
+    params?: Record<string, number | string>;
+    period_days?: number;
     initial_cash?: number;
+    n_windows?: number;
   }) =>
     fetchJson<WalkForwardResponse>("/api/v1/backtest/walk-forward", {
       method: "POST",
