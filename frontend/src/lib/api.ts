@@ -46,29 +46,25 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface Candle {
   timestamp: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
+  symbol: string;
+  timeframe: string;
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+  volume: string;
 }
 
 export interface OHLCVResponse {
   symbol: string;
   timeframe: string;
-  start: string;
-  end: string;
   count: number;
   candles: Candle[];
 }
 
-export interface MarketInfo {
-  symbol: string;
-  timeframes: string[];
-}
-
 export interface MarketsResponse {
-  markets: MarketInfo[];
+  symbols: string[];
+  timeframes: string[];
 }
 
 export interface CoverageRow {
@@ -110,8 +106,6 @@ export interface IndicatorResponse {
   timeframe: string;
   indicator: string;
   params: Record<string, number | string>;
-  start: string;
-  end: string;
   count: number;
   series: IndicatorSeriesPoint[];
 }
@@ -337,9 +331,7 @@ export const api = {
   markets: () => fetchJson<MarketsResponse>("/api/v1/ohlcv/markets"),
 
   coverage: () =>
-    fetchJson<{ rows: CoverageRow[] }>("/api/v1/ohlcv/coverage").then(
-      (r) => r.rows,
-    ),
+    fetchJson<CoverageRow[]>("/api/v1/ohlcv/coverage"),
 
   ohlcv: (
     symbol: string,
@@ -363,9 +355,7 @@ export const api = {
 
   // Indicators
   indicators: () =>
-    fetchJson<{ indicators: IndicatorInfo[] }>("/api/v1/indicators").then(
-      (r) => r.indicators,
-    ),
+    fetchJson<{ indicators: IndicatorInfo[] }>("/api/v1/indicators"),
 
   indicator: (
     symbol: string,
@@ -395,9 +385,7 @@ export const api = {
 
   // Backtest
   strategies: () =>
-    fetchJson<{ strategies: StrategyInfo[] }>("/api/v1/backtest/strategies").then(
-      (r) => r.strategies,
-    ),
+    fetchJson<{ strategies: StrategyInfo[] }>("/api/v1/backtest/strategies"),
 
   runBacktest: (req: {
     symbol: string;
