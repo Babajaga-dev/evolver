@@ -36,6 +36,9 @@ export default function Home() {
           <a className="hover:text-[--color-gold]" href="/data">
             ◆ Data Explorer
           </a>
+          <a className="hover:text-[--color-gold]" href="/history">
+            ◆ History
+          </a>
           <a className="hover:text-[--color-gold]" href="/backtest">
             ◆ Backtest
           </a>

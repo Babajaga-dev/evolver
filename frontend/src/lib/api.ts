@@ -348,6 +348,55 @@ export interface MaintenanceStats {
   ohlcv: OhlcvStats;
 }
 
+// Data Management (/api/v1/data/*)
+export interface SymbolStatus {
+  symbol: string;
+  count: number;
+  first: string | null;
+  last: string | null;
+  gap_days: number;
+  status: "missing" | "partial" | "fresh" | "stale";
+  in_universe: boolean;
+}
+
+export interface UniverseStatusResponse {
+  timeframe: string;
+  total_universe: number;
+  completed: number;
+  partial: number;
+  missing: number;
+  rows: SymbolStatus[];
+}
+
+export interface SmartBackfillRequest {
+  symbol: string;
+  timeframe?: string;
+  start_date_fallback?: string;
+}
+
+export interface SmartBackfillResponse {
+  symbol: string;
+  timeframe: string;
+  started: boolean;
+  job_id: string;
+  fetch_from: string;
+  fetch_to: string;
+  reason: "from_scratch" | "incremental" | "already_fresh";
+}
+
+export interface BulkBackfillRequest {
+  timeframe?: string;
+  only_missing?: boolean;
+  max_concurrent?: number;
+}
+
+export interface BulkBackfillResponse {
+  started: boolean;
+  job_id: string;
+  symbols: string[];
+  message: string;
+}
+
 // Risk Allocator (combines TREND + STAT-ARB + CARRY + F&G overlay)
 export interface AllocatorRunRequest {
   symbols?: string[];
@@ -790,6 +839,24 @@ export const api = {
 
 
 
+
+
+  getUniverseStatus: (timeframe: string = "1d") =>
+    fetchJson<UniverseStatusResponse>(`/api/v1/data/universe?timeframe=${timeframe}`),
+
+  smartBackfill: (body: SmartBackfillRequest) =>
+    fetchJson<SmartBackfillResponse>("/api/v1/data/backfill-smart", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+
+  bulkBackfillUniverse: (body: BulkBackfillRequest) =>
+    fetchJson<BulkBackfillResponse>("/api/v1/data/backfill-universe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
 
   allocatorRun: (body: AllocatorRunRequest) =>
     fetchJson<AllocatorResponse>("/api/v1/allocator/run", {
