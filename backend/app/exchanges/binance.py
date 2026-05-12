@@ -134,8 +134,8 @@ class BinanceConnector:
         # Convert spot symbol to perp swap symbol
         swap_symbol = symbol if ":USDT" in symbol else f"{symbol}:USDT"
         # Force defaultType=swap
-        original_type = self.exchange.options.get("defaultType")
-        self.exchange.options["defaultType"] = "swap"
+        original_type = self._client.options.get("defaultType")
+        self._client.options["defaultType"] = "swap"
         try:
             async for attempt in AsyncRetrying(
                 stop=stop_after_attempt(5),
@@ -143,13 +143,13 @@ class BinanceConnector:
                 retry=retry_if_exception_type((ccxt.NetworkError, ccxt.ExchangeError)),
             ):
                 with attempt:
-                    raw = await self.exchange.fetch_funding_rate_history(
+                    raw = await self._client.fetch_funding_rate_history(
                         swap_symbol, since=since_ms, limit=limit,
                     )
                     return raw
         finally:
             if original_type is not None:
-                self.exchange.options["defaultType"] = original_type
+                self._client.options["defaultType"] = original_type
         return []
 
     async def backfill_funding_rates(
