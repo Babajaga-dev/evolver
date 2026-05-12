@@ -348,6 +348,79 @@ export interface MaintenanceStats {
   ohlcv: OhlcvStats;
 }
 
+// STAT-ARB pairs trade (paper IJSRA 2026-0283 BTC-ETH cointegration)
+export interface StatArbRunRequest {
+  symbol_a?: string;
+  symbol_b?: string;
+  timeframe?: string;
+  start_date: string;
+  end_date: string;
+  initial_cash?: number;
+  lookback_bars?: number;
+  z_entry?: number;
+  z_exit?: number;
+  z_stop?: number;
+  max_half_life_bars?: number;
+  capital_per_trade?: number;
+  fee_bps?: number;
+  slippage_bps?: number;
+}
+
+export interface StatArbEquityPoint {
+  t: string;
+  equity: number;
+  spread: number;
+  zscore: number;
+  hedge_ratio: number;
+  position: number;
+}
+
+export interface StatArbTradeOut {
+  entry_time: string;
+  exit_time: string;
+  side: "long_spread" | "short_spread";
+  entry_spread: number;
+  exit_spread: number;
+  entry_z: number;
+  exit_z: number;
+  qty_a: number;
+  qty_b: number;
+  pnl: number;
+  pnl_pct: number;
+  holding_bars: number;
+  reason: string;
+}
+
+export interface StatArbMonthlyReturn {
+  month: string;
+  return_pct: number;
+  n_trades: number;
+}
+
+export interface StatArbResponse {
+  symbol_a: string;
+  symbol_b: string;
+  timeframe: string;
+  start_date: string;
+  end_date: string;
+  n_trades: number;
+  n_winners: number;
+  initial_cash: number;
+  final_equity: number;
+  total_return: number;
+  sharpe: number;
+  sortino: number;
+  max_drawdown: number;
+  win_rate: number;
+  avg_holding_bars: number;
+  beta_vs_btc: number;
+  avg_hedge_ratio: number;
+  cointegration_p_value: number;
+  equity_curve: StatArbEquityPoint[];
+  trades: StatArbTradeOut[];
+  monthly_returns: StatArbMonthlyReturn[];
+}
+
 // TREND Donchian ensemble (paper AdaptiveTrend arXiv 2602.11708)
 export interface TrendRunRequest {
   symbols?: string[];
@@ -659,6 +732,14 @@ export const api = {
       }),
     }),
 
+
+
+  statarbRun: (body: StatArbRunRequest) =>
+    fetchJson<StatArbResponse>("/api/v1/statarb/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
 
   trendRun: (body: TrendRunRequest) =>
     fetchJson<TrendResponse>("/api/v1/trend/run", {

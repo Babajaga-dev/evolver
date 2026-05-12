@@ -11,8 +11,8 @@ class TrendRunRequest(BaseModel):
     end_date: datetime
     initial_cash: float = Field(default=10_000.0, gt=0)
     lookbacks: list[int] = Field(default_factory=lambda: [5, 10, 20, 30, 60, 90, 150, 250])
-    target_vol_annual: float = Field(default=0.40, gt=0, le=2.0)
-    trailing_stop_atr_mult: float = Field(default=3.0, gt=0, le=10.0)
+    target_vol_annual: float = Field(default=0.55, gt=0, le=2.0)
+    trailing_stop_atr_mult: float = Field(default=4.0, gt=0, le=10.0)
     rebalance_days: int = Field(default=30, ge=1, le=365)
     top_n_assets: int = Field(default=10, ge=1, le=50)
     long_weight: float = Field(default=0.70, ge=0, le=1.0)

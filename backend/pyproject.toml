@@ -43,6 +43,7 @@ dependencies = [
     # ML / GA
     "optuna>=3.6.0",  # Bayesian TPE — MDPI 2026 paper shows +75% win rate vs evolutionary
     "scikit-learn>=1.5.0",
+    "statsmodels>=0.14.0",
 
     # Backtest engine vectorized (NumPy-based, miliardi candele/sec)
     "vectorbt>=0.27.0",
