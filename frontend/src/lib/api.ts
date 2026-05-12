@@ -348,6 +348,46 @@ export interface MaintenanceStats {
   ohlcv: OhlcvStats;
 }
 
+// Sentiment Fear & Greed (paper Zhang-Watts arXiv 2512.02029)
+export interface FngPoint {
+  date: string;
+  value: number;
+  classification: string;
+  ema_24w: number | null;
+  zone: "extreme_fear" | "fear" | "neutral" | "greed" | "extreme_greed";
+}
+
+export interface FngSeriesResponse {
+  start_date: string;
+  end_date: string;
+  n_points: number;
+  points: FngPoint[];
+  summary: {
+    current_value: number;
+    current_ema_24w: number;
+    current_zone: string;
+    min_value: number;
+    max_value: number;
+    mean_value: number;
+    mean_ema_24w: number;
+    n_extreme_fear_days: number;
+    n_extreme_greed_days: number;
+  };
+}
+
+export interface FngStats {
+  total_entries: number;
+  latest_date: string | null;
+  latest_value: number | null;
+  latest_classification: string | null;
+}
+
+export interface FngBackfillResponse {
+  started: boolean;
+  job_id: string;
+  message: string;
+}
+
 export type CleanupTarget = "ohlcv_old";
 
 export interface CleanupResult {
@@ -528,5 +568,27 @@ export const api = {
         older_than_days: opts.olderThanDays,
         confirm: opts.confirm ?? false,
       }),
+    }),
+
+  // Sentiment Fear & Greed
+  fngSeries: (opts: { start?: string | Date; end?: string | Date; limit?: number } = {}) => {
+    const qs = new URLSearchParams();
+    const toIso = (v: string | Date | undefined) =>
+      v === undefined ? undefined : (v instanceof Date ? v.toISOString() : v);
+    const s = toIso(opts.start);
+    const e = toIso(opts.end);
+    if (s) qs.set("start_date", s);
+    if (e) qs.set("end_date", e);
+    if (opts.limit) qs.set("limit", String(opts.limit));
+    return fetchJson<FngSeriesResponse>(`/api/v1/sentiment/fng?${qs.toString()}`);
+  },
+
+  fngStats: () => fetchJson<FngStats>("/api/v1/sentiment/stats"),
+
+  fngBackfill: (limit: number = 0) =>
+    fetchJson<FngBackfillResponse>("/api/v1/sentiment/backfill", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ limit }),
     }),
 };

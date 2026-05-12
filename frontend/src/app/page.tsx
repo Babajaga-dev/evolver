@@ -48,6 +48,9 @@ export default function Home() {
           <a className="hover:text-[--color-gold]" href="/carry">
             ◆ Carry
           </a>
+          <a className="hover:text-[--color-gold]" href="/sentiment">
+            ◆ Sentiment
+          </a>
           <a className="hover:text-[--color-gold]" href="/control">
             ◆ Control
           </a>
