@@ -62,9 +62,11 @@ async def run_allocator_backtest(
                     initial_cash=10_000.0,
                 )
                 res_t = run_trend_backtest(ohlcv_by_sym, config_t)
-                engines_equity["trend"] = pd.DataFrame(
+                df_trend = pd.DataFrame(
                     [{"t": p["t"], "equity": p["equity"]} for p in res_t.equity_curve]
-                ).set_index("t")
+                )
+                df_trend["t"] = pd.to_datetime(df_trend["t"], utc=True)
+                engines_equity["trend"] = df_trend.set_index("t")
                 per_engine_metrics["trend"] = {
                     "sharpe": res_t.sharpe, "return": res_t.total_return,
                     "max_drawdown": res_t.max_drawdown, "n_trades": res_t.n_trades,
@@ -92,9 +94,11 @@ async def run_allocator_backtest(
                     timeframe=body.timeframe, initial_cash=10_000.0,
                 )
                 res_s = run_statarb_backtest(df_a, df_b, config_s)
-                engines_equity["statarb"] = pd.DataFrame(
+                df_sa = pd.DataFrame(
                     [{"t": p.t, "equity": p.equity} for p in res_s.equity_curve]
-                ).set_index("t")
+                )
+                df_sa["t"] = pd.to_datetime(df_sa["t"], utc=True)
+                engines_equity["statarb"] = df_sa.set_index("t")
                 per_engine_metrics["statarb"] = {
                     "sharpe": res_s.sharpe, "return": res_s.total_return,
                     "max_drawdown": res_s.max_drawdown, "n_trades": res_s.n_trades,
@@ -120,9 +124,11 @@ async def run_allocator_backtest(
             try:
                 config_c = CarryConfig(symbol="BTC/USDT", initial_cash=10_000.0)
                 res_c = run_cash_and_carry(df_btc, df_fund, config_c)
-                engines_equity["carry"] = pd.DataFrame(
+                df_carry = pd.DataFrame(
                     [{"t": p["t"], "equity": p["equity"]} for p in res_c.equity_curve]
-                ).set_index("t")
+                )
+                df_carry["t"] = pd.to_datetime(df_carry["t"], utc=True)
+                engines_equity["carry"] = df_carry.set_index("t")
                 per_engine_metrics["carry"] = {
                     "sharpe": res_c.sharpe, "return": res_c.total_return,
                     "max_drawdown": res_c.max_drawdown, "n_trades": res_c.n_trades,
