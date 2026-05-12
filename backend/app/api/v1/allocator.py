@@ -13,7 +13,7 @@ from app.core.logging import get_logger
 from app.repositories import ohlcv as ohlcv_repo
 from app.repositories import funding as funding_repo
 from app.repositories import sentiment as sentiment_repo
-from app.allocator.engine import AllocatorConfig, AllocatorPointOut, run_allocator
+from app.allocator.engine import AllocatorConfig, run_allocator
 from app.schemas.allocator import (
     AllocatorPointOut as APO,
     AllocatorResponse,
