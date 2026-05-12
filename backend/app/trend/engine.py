@@ -24,10 +24,10 @@ class TrendConfig:
     symbols: list[str]
     timeframe: str = "4h"
     lookbacks: tuple[int, ...] = DEFAULT_LOOKBACKS
-    target_vol_annual: float = 0.55
+    target_vol_annual: float = 0.40
     vol_lookback: int = 30
     atr_period: int = 14
-    trailing_stop_atr_mult: float = 4.0
+    trailing_stop_atr_mult: float = 3.0
     rebalance_days: int = 30
     top_n_assets: int = 10
     long_weight: float = 0.70
