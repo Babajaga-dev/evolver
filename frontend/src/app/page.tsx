@@ -45,6 +45,9 @@ export default function Home() {
           <a className="hover:text-[--color-gold]" href="/replay">
             ◆ Replay
           </a>
+          <a className="hover:text-[--color-gold]" href="/trend">
+            ◆ Trend
+          </a>
           <a className="hover:text-[--color-gold]" href="/carry">
             ◆ Carry
           </a>

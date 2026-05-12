@@ -348,6 +348,95 @@ export interface MaintenanceStats {
   ohlcv: OhlcvStats;
 }
 
+// TREND Donchian ensemble (paper AdaptiveTrend arXiv 2602.11708)
+export interface TrendRunRequest {
+  symbols?: string[];
+  timeframe?: string;
+  start_date: string;
+  end_date: string;
+  initial_cash?: number;
+  lookbacks?: number[];
+  target_vol_annual?: number;
+  trailing_stop_atr_mult?: number;
+  rebalance_days?: number;
+  top_n_assets?: number;
+  long_weight?: number;
+  short_weight?: number;
+  fee_bps?: number;
+  slippage_bps?: number;
+}
+
+export interface TrendEquityPoint {
+  t: string;
+  equity: number;
+  exposure_pct: number;
+  n_positions: number;
+}
+
+export interface TrendTradeOut {
+  symbol: string;
+  side: "long" | "short";
+  entry_time: string;
+  entry_price: number;
+  exit_time: string;
+  exit_price: number;
+  pnl: number;
+  pnl_pct: number;
+  holding_days: number;
+  reason: string;
+}
+
+export interface TrendMonthlyReturn {
+  month: string;
+  return_pct: number;
+  n_trades: number;
+}
+
+export interface TrendAssetStat {
+  symbol: string;
+  n_trades: number;
+  n_winners: number;
+  total_pnl: number;
+  avg_pnl_pct: number;
+}
+
+export interface TrendResponse {
+  symbols: string[];
+  timeframe: string;
+  start_date: string;
+  end_date: string;
+  n_trades: number;
+  n_long_trades: number;
+  n_short_trades: number;
+  initial_cash: number;
+  final_equity: number;
+  total_return: number;
+  sharpe: number;
+  sortino: number;
+  max_drawdown: number;
+  win_rate: number;
+  avg_pnl_pct: number;
+  monthly_returns: TrendMonthlyReturn[];
+  equity_curve: TrendEquityPoint[];
+  trades: TrendTradeOut[];
+  per_asset_stats: TrendAssetStat[];
+  baselines: {
+    buy_hold_equal_weight: {
+      sharpe: number;
+      total_return: number;
+      max_drawdown: number;
+      final_equity: number;
+    };
+    per_asset_buy_hold: Array<{
+      symbol: string;
+      sharpe: number;
+      total_return: number;
+      max_drawdown: number;
+      final_equity: number;
+    }>;
+  };
+}
+
 // Sentiment Fear & Greed (paper Zhang-Watts arXiv 2512.02029)
 export interface FngPoint {
   date: string;
@@ -568,6 +657,14 @@ export const api = {
         older_than_days: opts.olderThanDays,
         confirm: opts.confirm ?? false,
       }),
+    }),
+
+
+  trendRun: (body: TrendRunRequest) =>
+    fetchJson<TrendResponse>("/api/v1/trend/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     }),
 
   // Sentiment Fear & Greed
