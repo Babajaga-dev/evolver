@@ -51,6 +51,9 @@ export default function Home() {
           <a className="hover:text-[--color-gold]" href="/statarb">
             ◆ StatArb
           </a>
+          <a className="hover:text-[--color-gold]" href="/allocator">
+            ◆ Allocator
+          </a>
           <a className="hover:text-[--color-gold]" href="/carry">
             ◆ Carry
           </a>

@@ -348,6 +348,62 @@ export interface MaintenanceStats {
   ohlcv: OhlcvStats;
 }
 
+// Risk Allocator (combines TREND + STAT-ARB + CARRY + F&G overlay)
+export interface AllocatorRunRequest {
+  symbols?: string[];
+  timeframe?: string;
+  start_date: string;
+  end_date: string;
+  initial_cash?: number;
+  rolling_sharpe_days?: number;
+  rebalance_days?: number;
+  apply_fng_overlay?: boolean;
+  apply_gate_overlay?: boolean;
+  run_trend?: boolean;
+  run_statarb?: boolean;
+  run_carry?: boolean;
+  statarb_symbol_a?: string;
+  statarb_symbol_b?: string;
+}
+
+export interface AllocatorPoint {
+  t: string;
+  equity: number;
+  weight_trend: number;
+  weight_statarb: number;
+  weight_carry: number;
+  fng_ema: number | null;
+  regime: string;
+  gate_active: boolean;
+}
+
+export interface AllocatorResponse {
+  start_date: string;
+  end_date: string;
+  initial_cash: number;
+  final_equity: number;
+  total_return: number;
+  sharpe: number;
+  sortino: number;
+  max_drawdown: number;
+  correlation_matrix: Record<string, Record<string, number>>;
+  per_engine_contribution: Record<string, number>;
+  per_engine_metrics: Record<string, {
+    sharpe: number;
+    return: number;
+    max_drawdown: number;
+    n_trades: number;
+    beta_vs_btc?: number;
+  }>;
+  equity_curve: AllocatorPoint[];
+  config: {
+    rolling_sharpe_days: number;
+    rebalance_days: number;
+    fng_overlay_applied: boolean;
+    engines_active: string[];
+  };
+}
+
 // STAT-ARB pairs trade (paper IJSRA 2026-0283 BTC-ETH cointegration)
 export interface StatArbRunRequest {
   symbol_a?: string;
@@ -733,6 +789,14 @@ export const api = {
     }),
 
 
+
+
+  allocatorRun: (body: AllocatorRunRequest) =>
+    fetchJson<AllocatorResponse>("/api/v1/allocator/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
 
   statarbRun: (body: StatArbRunRequest) =>
     fetchJson<StatArbResponse>("/api/v1/statarb/run", {
