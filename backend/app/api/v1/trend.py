@@ -87,6 +87,9 @@ async def run_trend(
         fee_bps=body.fee_bps,
         slippage_bps=body.slippage_bps,
         initial_cash=body.initial_cash,
+        fee_mode=body.fee_mode,
+        universe_rolling=body.universe_rolling,
+        volume_lookback_days=body.volume_lookback_days,
     )
     log.info("trend.run.start", symbols=list(ohlcv_by_sym.keys()),
              tf=body.timeframe, start=body.start_date.isoformat(),

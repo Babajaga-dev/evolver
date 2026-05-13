@@ -128,25 +128,33 @@ class BinanceConnector:
     ) -> list[dict]:
         """Fetch funding rate batch da Binance USDS-M perpetual via ccxt.
 
-        ccxt: fetch_funding_rate_history(symbol, since, limit, params).
-        Symbol format: "BTC/USDT:USDT" per perp swap.
+        Se il simbolo NON ha perpetual futures (BadSymbol), ritorna [] immediatamente
+        senza retry — evita hang del backfill su coin spot-only.
         """
         # Convert spot symbol to perp swap symbol
         swap_symbol = symbol if ":USDT" in symbol else f"{symbol}:USDT"
-        # Force defaultType=swap
         original_type = self._client.options.get("defaultType")
         self._client.options["defaultType"] = "swap"
         try:
+            # Pre-check: ensure the swap market exists (no retry on BadSymbol)
+            try:
+                self._client.market(swap_symbol)
+            except ccxt.BadSymbol:
+                log.info("funding.skip.no_perp", symbol=symbol)
+                return []
             async for attempt in AsyncRetrying(
-                stop=stop_after_attempt(5),
-                wait=wait_exponential(multiplier=1, min=1, max=30),
-                retry=retry_if_exception_type((ccxt.NetworkError, ccxt.ExchangeError)),
+                stop=stop_after_attempt(3),
+                wait=wait_exponential(multiplier=1, min=1, max=15),
+                retry=retry_if_exception_type((ccxt.NetworkError, ccxt.RequestTimeout)),
             ):
                 with attempt:
                     raw = await self._client.fetch_funding_rate_history(
                         swap_symbol, since=since_ms, limit=limit,
                     )
                     return raw
+        except ccxt.BadSymbol:
+            log.info("funding.skip.bad_symbol", symbol=symbol)
+            return []
         finally:
             if original_type is not None:
                 self._client.options["defaultType"] = original_type

@@ -19,6 +19,15 @@ class TrendRunRequest(BaseModel):
     short_weight: float = Field(default=0.30, ge=0, le=1.0)
     fee_bps: float = Field(default=4.0, ge=0, le=50)
     slippage_bps: float = Field(default=2.0, ge=0, le=50)
+    fee_mode: str = Field(
+        default="retail",
+        description="retail (10bps + 5slip) | vip (6+3) | maker (-1 rebate + 2 slip) | zero (theoretical)",
+    )
+    universe_rolling: bool = Field(
+        default=False,
+        description="Se True, seleziona top-N by rolling volume alla data del rebalance (no peek-ahead)",
+    )
+    volume_lookback_days: int = Field(default=30, ge=7, le=365)
 
 
 class TrendEquityPoint(BaseModel):

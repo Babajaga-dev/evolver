@@ -19,6 +19,14 @@ from app.trend.donchian import (
 )
 
 
+FEE_PRESETS = {
+    "retail":   {"fee_bps": 10.0, "slippage_bps": 5.0},   # taker Binance + retail slippage
+    "vip":      {"fee_bps": 6.0,  "slippage_bps": 3.0},   # VIP9 Binance ~0.06% taker
+    "maker":    {"fee_bps": -1.0, "slippage_bps": 2.0},   # maker rebate (replica paper)
+    "zero":     {"fee_bps": 0.0,  "slippage_bps": 0.0},   # no friction (theoretical)
+}
+
+
 @dataclass
 class TrendConfig:
     symbols: list[str]
@@ -32,10 +40,22 @@ class TrendConfig:
     top_n_assets: int = 10
     long_weight: float = 0.70
     short_weight: float = 0.30
-    fee_bps: float = 4.0  # taker fee 0.04%
+    fee_mode: str = "retail"  # retail|vip|maker|zero — overrides fee_bps if set
+    fee_bps: float = 4.0
     slippage_bps: float = 2.0
     initial_cash: float = 10_000.0
     sharpe_lookback_days: int = 90
+    # Universe rolling as-of: select top-N by volume_lookback_days rolling
+    universe_rolling: bool = False
+    volume_lookback_days: int = 30
+    # Slippage impact: linear in position_size_pct of asset 30d ADV
+    slippage_impact_bps: float = 0.0  # 0 = no impact, 50 = +50bps per 1% of ADV
+
+    def __post_init__(self):
+        if self.fee_mode in FEE_PRESETS:
+            preset = FEE_PRESETS[self.fee_mode]
+            self.fee_bps = preset["fee_bps"]
+            self.slippage_bps = preset["slippage_bps"]
 
 
 @dataclass
@@ -97,11 +117,14 @@ def run_trend_backtest(
     bppy = _bar_periods_per_year(config.timeframe)
 
     # 1. Compute signals + vol weights per symbol
+    # Pre-filter: require minimum bars for any meaningful signal
+    min_bars_required = max(config.lookbacks) + 5
     signal_by_sym: dict[str, pd.Series] = {}
     vol_w_by_sym: dict[str, pd.Series] = {}
     atr_by_sym: dict[str, pd.Series] = {}
+    vol_usd_by_sym: dict[str, pd.Series] = {}  # rolling 30d USD volume per asset (for universe rolling)
     for sym, df in ohlcv_by_symbol.items():
-        if df.empty or len(df) < max(config.lookbacks):
+        if df.empty or len(df) < min_bars_required:
             continue
         sig = donchian_signal(df, lookbacks=config.lookbacks)
         wv = volatility_target_weight(
@@ -113,6 +136,13 @@ def run_trend_backtest(
         signal_by_sym[sym] = sig
         vol_w_by_sym[sym] = wv
         atr_by_sym[sym] = atr(df, period=config.atr_period)
+        # USD daily volume = close * volume, rolling 30d sum
+        if "volume" in df.columns:
+            usd_vol = (df["close"] * df["volume"]).rolling(
+                window=config.volume_lookback_days * (bppy // 365 or 1),
+                min_periods=10,
+            ).mean()
+            vol_usd_by_sym[sym] = usd_vol
 
     if not signal_by_sym:
         raise ValueError("Nessun simbolo con dati sufficienti")
@@ -188,12 +218,37 @@ def run_trend_backtest(
         # Periodic rebalance — select top-N by rolling Sharpe + open new positions
         if bar_i - last_rebal_idx >= bars_per_rebalance:
             last_rebal_idx = bar_i
-            # Rank symbols by rolling Sharpe ratio of returns
-            scores = []
+            # Universe filter as-of: only include symbols with sufficient history at T
+            eligible = []
             for sym in signal_by_sym:
                 df = ohlcv_by_symbol[sym]
                 if t not in df.index:
                     continue
+                end_pos = df.index.searchsorted(t)
+                if end_pos < min_bars_required:
+                    continue
+                eligible.append(sym)
+
+            # Universe rolling as-of: filter by USD volume at T (top by liquidity at that date)
+            if config.universe_rolling and vol_usd_by_sym:
+                vol_at_t = []
+                for sym in eligible:
+                    vs = vol_usd_by_sym.get(sym)
+                    if vs is None or t not in vs.index:
+                        continue
+                    v = float(vs.loc[t])
+                    if not (v > 0):
+                        continue
+                    vol_at_t.append((sym, v))
+                vol_at_t.sort(key=lambda x: -x[1])
+                # Keep top-K by volume (3x top_n_assets to allow Sharpe selection within)
+                universe_size = max(config.top_n_assets * 3, 20)
+                eligible = [s for s, _ in vol_at_t[:universe_size]]
+
+            # Rank by rolling Sharpe within eligible universe
+            scores = []
+            for sym in eligible:
+                df = ohlcv_by_symbol[sym]
                 end_pos = df.index.searchsorted(t)
                 start_pos = max(0, end_pos - sharpe_lookback_bars)
                 window = df["close"].iloc[start_pos:end_pos + 1]
